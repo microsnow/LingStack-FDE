@@ -2,9 +2,9 @@
 
 DevKit 是一个隐私优先、离线优先的开发者工具集。常用转换和数据处理在浏览器本地完成，无需上传输入内容。
 
-- 当前版本：v0.3.1
+- 当前版本：v0.4.0
 - 在线体验：[打开 DevKit](https://devkit-local-tools.buzzy-birch-3762.chatgpt.site)
-- 已上线工具：28 个
+- 已上线工具：74 个
 
 ## 主要特性
 
@@ -13,6 +13,8 @@ DevKit 是一个隐私优先、离线优先的开发者工具集。常用转换�
 - 工具数据优先在浏览器本地处理
 - 支持工具搜索、分类筛选、收藏和最近使用
 - 支持结果复制和响应式布局
+- 支持自动执行、输入输出交换、文件拖放和结果下载
+- 支持最多 6 个工具标签页和移动端分类导航
 - 敏感内容不作为项目数据上传
 
 ## 明暗模式
@@ -41,6 +43,12 @@ DevKit 是一个隐私优先、离线优先的开发者工具集。常用转换�
 - JSON 转 TypeScript
 - 正则表达式测试
 - Markdown 转 HTML
+- YAML 转 JSON、YAML 格式化与校验
+- JSON 与 XML、CSV 双向转换
+- JSON Schema 基础校验
+- XML、HTML、CSS、JavaScript 格式化
+- CSV 表格预览、Java Properties 与 YAML 互转
+- Markdown 表格生成器
 
 ### 文本处理
 
@@ -50,6 +58,7 @@ DevKit 是一个隐私优先、离线优先的开发者工具集。常用转换�
 - 文本自然升序和降序排序
 - 文本 Diff
 - camelCase、PascalCase、snake_case、kebab-case 和 CONSTANT_CASE 转换
+- 文本查找与批量替换、行过滤和随机打乱
 
 ### 加密与安全
 

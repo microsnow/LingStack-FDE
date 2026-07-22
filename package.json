@@ -1,6 +1,6 @@
 {
   "name": "site-creator-vinext-starter",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && tsx --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
@@ -19,16 +19,22 @@
     "cronstrue": "^3.24.0",
     "crypto-js": "^4.2.0",
     "drizzle-orm": "0.45.2",
+    "fast-xml-parser": "^5.10.1",
+    "marked": "^18.0.7",
     "next": "16.2.6",
     "opencc-js": "^1.4.1",
+    "papaparse": "^5.5.4",
     "pinyin-pro": "^3.28.1",
+    "prettier": "^3.9.6",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
@@ -38,6 +44,7 @@
     "eslint-config-next": "16.2.6",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.23.1",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",

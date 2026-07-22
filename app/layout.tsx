@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./v2.css";
@@ -6,11 +7,16 @@ import "./v2.css";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "DevKit · 开发者工具箱",
-  description: "私密、高效、离线优先的开发者工具集。",
-  icons: { icon: "/favicon.svg" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers(), host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost", protocol = requestHeaders.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https"), image = `${protocol}://${host}/og.png`;
+  return {
+    title: "DevKit · 开发者工具箱",
+    description: "74 个隐私优先、离线优先的开发者工具。",
+    icons: { icon: "/favicon.svg" },
+    openGraph: { title: "DevKit · 开发者工具箱", description: "74 个本地开发工具，数据不外传。", images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title: "DevKit · 开发者工具箱", description: "74 个本地开发工具，数据不外传。", images: [image] },
+  };
+}
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="zh-CN" data-theme="dark"><body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body></html>;
