@@ -14,8 +14,14 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@noble/hashes": "^2.2.0",
+    "@types/crypto-js": "^4.2.2",
+    "cronstrue": "^3.24.0",
+    "crypto-js": "^4.2.0",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
+    "opencc-js": "^1.4.1",
+    "pinyin-pro": "^3.28.1",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
