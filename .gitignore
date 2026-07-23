@@ -41,3 +41,6 @@ next-env.d.ts
 /outputs/
 /work/
 .dev-server*.log
+# Sites deployment staging artifacts
+/build/devkit-*.tar.gz
+/build/package-site.sh
