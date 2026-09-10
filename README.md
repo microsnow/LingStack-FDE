@@ -111,20 +111,35 @@ npm install
 npm run dev
 ```
 
-构建检查：
+构建静态网站：
 
 ```bash
 npm run build
 ```
 
+构建产物位于 `dist/`，包含可部署到任意静态网站服务的
+`index.html` 和 `assets/`。资源地址使用相对路径，支持部署在域名根目录或子目录。
+
+运行质量检查：
+
+```bash
+npm test
+npm run lint
+```
+
+每次构建都会先清理旧产物，避免历史服务端文件混入静态发布包。
+
 ## 项目结构
 
 ```text
 app/
+├─ main.tsx       # 静态应用入口
 ├─ page.tsx       # 工具配置、处理逻辑和界面
-├─ layout.tsx     # 页面布局与元数据
 ├─ globals.css    # 全局样式与明暗主题
 └─ v2.css         # 补充样式
+lib/              # P0 工具处理逻辑与隐私策略
+scripts/          # 构建清理脚本
+tests/            # 核心工具、错误边界和隐私测试
 public/           # 静态资源
 .openai/          # Sites 发布配置
 TODO.md           # 后续开发计划

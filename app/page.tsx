@@ -1,13 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Converter } from "opencc-js";
-import { pinyin } from "pinyin-pro";
-import cronstrue from "cronstrue/i18n.js";
-import CryptoJS from "crypto-js";
-import { sha3_224, sha3_256, sha3_384, sha3_512 } from "@noble/hashes/sha3.js";
-import { bytesToHex } from "@noble/hashes/utils.js";
 import { p0Samples, runP0Tool } from "../lib/p0-tools";
+import { nextRecentTools, sensitiveToolIds } from "../lib/tool-policy";
 
 type Category = "编码转换" | "格式校验" | "文本处理" | "加密安全" | "Web 与网络" | "前端工具" | "后端工具" | "数据生成";
 type Tool = { id: string; name: string; desc: string; icon: string; color: string; category: Category; tag?: string };
@@ -102,10 +97,9 @@ function numberIp(n:number){return [24,16,8,0].map(s=>(n>>>s)&255).join(".")}
 function luminance(hex:string){const h=hex.replace("#","");if(!/^[0-9a-f]{6}$/i.test(h))throw new Error("请输入两个 6 位 HEX 颜色");const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(x=>x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]}
 type CipherName="aes"|"des"|"tripledes"|"rabbit"|"rc4";
 function cipherInput(value:string){let parsed:unknown;try{parsed=JSON.parse(value)}catch{throw new Error('请输入 JSON，例如 {"text":"内容","key":"口令"}')};if(!parsed||typeof parsed!=="object")throw new Error("输入必须是 JSON 对象");const {text,key}=parsed as Record<string,unknown>;if(typeof text!=="string"||typeof key!=="string"||!key)throw new Error("text 必须是字符串，key 必须是非空字符串");return {text,key}}
-function cipherRun(name:CipherName,decrypt:boolean,value:string){const {text,key}=cipherInput(value);const algorithms={aes:CryptoJS.AES,des:CryptoJS.DES,tripledes:CryptoJS.TripleDES,rabbit:CryptoJS.Rabbit,rc4:CryptoJS.RC4};if(!decrypt)return algorithms[name].encrypt(text,key).toString();let result="";try{result=algorithms[name].decrypt(text,key).toString(CryptoJS.enc.Utf8)}catch{throw new Error("解密失败，请检查密文和口令")};if(!result&&text)throw new Error("解密结果为空，请检查密文和口令");return result}
+async function cipherRun(name:CipherName,decrypt:boolean,value:string){const {default:CryptoJS}=await import("crypto-js");const {text,key}=cipherInput(value);const algorithms={aes:CryptoJS.AES,des:CryptoJS.DES,tripledes:CryptoJS.TripleDES,rabbit:CryptoJS.Rabbit,rc4:CryptoJS.RC4};if(!decrypt)return algorithms[name].encrypt(text,key).toString();let result="";try{result=algorithms[name].decrypt(text,key).toString(CryptoJS.enc.Utf8)}catch{throw new Error("解密失败，请检查密文和口令")};if(!result&&text)throw new Error("解密结果为空，请检查密文和口令");return result}
 function crc32(value:string){let crc=0xffffffff;for(const byte of new TextEncoder().encode(value)){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}return (crc^0xffffffff)>>>0}
-const toTraditional=Converter({from:"cn",to:"tw"});
-const toSimplified=Converter({from:"tw",to:"cn"});
+async function convertChinese(value:string,toSimplified:boolean){const {Converter}=await import("opencc-js");return Converter(toSimplified?{from:"tw",to:"cn"}:{from:"cn",to:"tw"})(value)}
 function rmbUppercase(value:string){
   const normalized=value.trim().replace(/[￥¥,，\s]/g,"");
   if(!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(normalized))throw new Error("请输入有效金额，最多保留两位小数");
@@ -117,7 +111,8 @@ function rmbUppercase(value:string){
   const cents=Math.round((amount-Math.floor(amount))*100),jiao=Math.floor(cents/10),fen=cents%10;
   return `人民币${text}元${jiao?digits[jiao]+"角":fen?"零":""}${fen?digits[fen]+"分":"整"}`;
 }
-function describeCron(expression:string,mode:"linux"|"spring"|"quartz"){
+async function describeCron(expression:string,mode:"linux"|"spring"|"quartz"){
+  const {default:cronstrue}=await import("cronstrue/i18n.js");
   const fields=expression.trim().split(/\s+/),expected=mode==="linux"?"5":mode==="spring"?"6":"6 或 7";
   if((mode==="linux"&&fields.length!==5)||(mode==="spring"&&fields.length!==6)||(mode==="quartz"&&![6,7].includes(fields.length)))throw new Error(`${mode==="linux"?"Linux":mode==="spring"?"Spring":"Quartz"} 表达式需要 ${expected} 个字段`);
   const names=mode==="linux"?["分钟","小时","日","月","星期"]:["秒","分钟","小时","日","月","星期",...(mode==="quartz"&&fields.length===7?["年"]:[])];
@@ -170,7 +165,7 @@ export default function Home(){
   useEffect(()=>{document.documentElement.dataset.theme=theme;if(ready)localStorage.setItem("devkit-theme",theme)},[theme,ready]);
   useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();searchRef.current?.focus()}if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();runTool()}};addEventListener("keydown",key);return()=>removeEventListener("keydown",key)});
   const visible=useMemo(()=>tools.filter(t=>{const matches=(t.name+t.desc+t.category).toLowerCase().includes(query.toLowerCase());if(!matches)return false;if(category==="常用收藏")return favorites.includes(t.id);if(category==="最近使用")return recent.includes(t.id);if(category!=="全部工具")return t.category===category;return true}).sort((a,b)=>category==="最近使用"?recent.indexOf(a.id)-recent.indexOf(b.id):0),[query,category,favorites,recent]);
-  function selectTool(id:string){setActive(id);setTabs(value=>value.includes(id)?value:[...value,id].slice(-6));setInput(samples[id]??"");setOutput("");setError("");setMobileNav(false);const next=[id,...recent.filter(x=>x!==id)].slice(0,8);setRecent(next);localStorage.setItem("devkit-recent",JSON.stringify(next));}
+  function selectTool(id:string){setActive(id);setTabs(value=>value.includes(id)?value:[...value,id].slice(-6));setInput(samples[id]??"");setOutput("");setError("");setMobileNav(false);if(!sensitiveToolIds.has(id)){const next=nextRecentTools(recent,id);setRecent(next);localStorage.setItem("devkit-recent",JSON.stringify(next));}}
   function toggleFavorite(id:string){const next=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];setFavorites(next);localStorage.setItem("devkit-favorites",JSON.stringify(next))}
   async function runTool(action="primary"){
     try{setError("");let result="";
@@ -190,7 +185,7 @@ export default function Home(){
         result=values.map((value,index)=>`# ${index+1} · ${value}\n${dateDetails(parseDateValue(value))}`).join("\n\n");
       }
       else if(active==="radix"){const n=input.trim().startsWith("0x")?parseInt(input,16):Number(input);if(!Number.isInteger(n))throw new Error("请输入有效整数");result=`二进制：${n.toString(2)}\n八进制：${n.toString(8)}\n十进制：${n}\n十六进制：${n.toString(16).toUpperCase()}`}
-      else if(active==="chinese")result=action==="simplified"?toSimplified(input):toTraditional(input);
+      else if(active==="chinese")result=await convertChinese(input,action==="simplified");
       else if(active==="case")result=action==="lower"?input.toLocaleLowerCase():input.toLocaleUpperCase();
       else if(active==="ascii"){
         if(action==="decode"){const values=input.trim().split(/[\s,，]+/).filter(Boolean);if(!values.length||values.some(x=>!/^\d+$/.test(x)||Number(x)>0x10ffff))throw new Error("请输入以空格或逗号分隔的十进制编码数字");result=values.map(x=>String.fromCodePoint(Number(x))).join("")}
@@ -198,16 +193,16 @@ export default function Home(){
       }
       else if(active==="escape")result=action==="decode"?JSON.parse(`"${input}"`):JSON.stringify(input).slice(1,-1);
       else if(active==="rmb")result=rmbUppercase(input);
-      else if(active==="pinyin")result=pinyin(input,{toneType:"symbol",type:"string",nonZh:"consecutive"});
+      else if(active==="pinyin"){const {pinyin}=await import("pinyin-pro");result=pinyin(input,{toneType:"symbol",type:"string",nonZh:"consecutive"})}
       else if(active==="hash"){const algorithm=action==="sha1"?"SHA-1":action==="sha512"?"SHA-512":"SHA-256";const digest=await crypto.subtle.digest(algorithm,new TextEncoder().encode(input));result=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("")}
-      else if(active.startsWith("md5-")){const full=CryptoJS.MD5(input).toString();result=active.includes("16-")?full.slice(8,24):full;if(active.endsWith("upper"))result=result.toUpperCase()}
-      else if(active==="sha1")result=CryptoJS.SHA1(input).toString();
-      else if(active==="sha2-256")result=CryptoJS.SHA256(input).toString();
-      else if(active==="sha2-512")result=CryptoJS.SHA512(input).toString();
-      else if(active.startsWith("sha3-")){const algorithms={"sha3-224":sha3_224,"sha3-256":sha3_256,"sha3-384":sha3_384,"sha3-512":sha3_512};result=bytesToHex(algorithms[active as keyof typeof algorithms](new TextEncoder().encode(input)))}
-      else if(active==="ripemd-160")result=CryptoJS.RIPEMD160(input).toString();
+      else if(active.startsWith("md5-")){const {default:CryptoJS}=await import("crypto-js");const full=CryptoJS.MD5(input).toString();result=active.includes("16-")?full.slice(8,24):full;if(active.endsWith("upper"))result=result.toUpperCase()}
+      else if(active==="sha1"){const {default:CryptoJS}=await import("crypto-js");result=CryptoJS.SHA1(input).toString()}
+      else if(active==="sha2-256"){const {default:CryptoJS}=await import("crypto-js");result=CryptoJS.SHA256(input).toString()}
+      else if(active==="sha2-512"){const {default:CryptoJS}=await import("crypto-js");result=CryptoJS.SHA512(input).toString()}
+      else if(active.startsWith("sha3-")){const sha3=await import("@noble/hashes/sha3.js");const algorithms={"sha3-224":sha3.sha3_224,"sha3-256":sha3.sha3_256,"sha3-384":sha3.sha3_384,"sha3-512":sha3.sha3_512};result=Array.from(algorithms[active as keyof typeof algorithms](new TextEncoder().encode(input)),byte=>byte.toString(16).padStart(2,"0")).join("")}
+      else if(active==="ripemd-160"){const {default:CryptoJS}=await import("crypto-js");result=CryptoJS.RIPEMD160(input).toString()}
       else if(active==="crc32-64")result=crc32(input).toString(16).padStart(16,"0");
-      else if(/^(aes|des|tripledes|rabbit|rc4)-(encrypt|decrypt)$/.test(active)){const [name,mode]=active.split("-") as [CipherName,"encrypt"|"decrypt"];result=cipherRun(name,mode==="decrypt",input)}
+      else if(/^(aes|des|tripledes|rabbit|rc4)-(encrypt|decrypt)$/.test(active)){const [name,mode]=active.split("-") as [CipherName,"encrypt"|"decrypt"];result=await cipherRun(name,mode==="decrypt",input)}
       else if(active==="uuid")result=Array.from({length:Math.min(Math.max(Number(input)||1,1),100)},()=>crypto.randomUUID()).join("\n");
       else if(active==="password"){
         const definitions={numbers:"0123456789",lower:"abcdefghijklmnopqrstuvwxyz",upper:"ABCDEFGHIJKLMNOPQRSTUVWXYZ",symbols:"!@#$%^&*()_+-=[]{};:,.?/|~"},groups=Object.entries(passwordGroups).filter(([,enabled])=>enabled).map(([name])=>definitions[name as keyof typeof definitions]);
@@ -237,7 +232,7 @@ export default function Home(){
       else if(active==="diff"){const [a="",b=""]=input.split(/^--- 对比 ---$/m),aa=a.trim().split("\n"),bb=b.trim().split("\n"),size=Math.max(aa.length,bb.length);result=Array.from({length:size},(_,i)=>aa[i]===bb[i]?`  ${aa[i]??""}`:`- ${aa[i]??""}\n+ ${bb[i]??""}`).join("\n")}
       else if(active==="naming"){const words=input.trim().replace(/([a-z0-9])([A-Z])/g,"$1 $2").split(/[\s_-]+/).filter(Boolean).map(x=>x.toLowerCase());result=`camelCase：${words[0]+words.slice(1).map(x=>x[0].toUpperCase()+x.slice(1)).join("")}\nPascalCase：${words.map(x=>x[0].toUpperCase()+x.slice(1)).join("")}\nsnake_case：${words.join("_")}\nkebab-case：${words.join("-")}\nCONSTANT_CASE：${words.join("_").toUpperCase()}`}
       else if(active==="entities")result=action==="decode"?new DOMParser().parseFromString(input,"text/html").documentElement.textContent??"":input.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-      else if(active==="cron")result=describeCron(input,action==="spring"?"spring":action==="quartz"?"quartz":"linux");
+      else if(active==="cron")result=await describeCron(input,action==="spring"?"spring":action==="quartz"?"quartz":"linux");
       else if(active==="curl"){const url=input.match(/https?:\/\/[^\s'\"]+/)?.[0];if(!url)throw new Error("未找到请求 URL");const method=input.match(/(?:-X|--request)\s+([A-Z]+)/i)?.[1]??(input.match(/(?:-d|--data)/)?"POST":"GET");const headers=Object.fromEntries([...input.matchAll(/(?:-H|--header)\s+['\"]([^:]+):\s*([^'\"]+)['\"]/g)].map(x=>[x[1],x[2]]));const body=input.match(/(?:-d|--data(?:-raw)?)\s+'([^']*)'/)?.[1];result=`fetch(${JSON.stringify(url)}, ${JSON.stringify({method:method.toUpperCase(),...(Object.keys(headers).length?{headers}:{}),...(body?{body}: {})},null,2)})\n  .then(response => response.json())\n  .then(console.log);`}
       else if(active==="cidr"){const [ip,prefixText]=input.trim().split("/"),prefix=Number(prefixText);if(!Number.isInteger(prefix)||prefix<0||prefix>32)throw new Error("前缀长度必须在 0–32 之间");const n=ipNumber(ip),mask=prefix===0?0:(0xffffffff<<(32-prefix))>>>0,network=(n&mask)>>>0,broadcast=(network|(~mask>>>0))>>>0,hosts=prefix>=31?Math.pow(2,32-prefix):Math.pow(2,32-prefix)-2;result=`网络地址：${numberIp(network)}\n子网掩码：${numberIp(mask)}\n广播地址：${numberIp(broadcast)}\n可用范围：${numberIp(prefix>=31?network:network+1)} — ${numberIp(prefix>=31?broadcast:broadcast-1)}\n主机数：${hosts}`}
       else if(active==="units"){const n=Number(input);if(!Number.isFinite(n))throw new Error("请输入数值");result=action==="decode"?`${n}rem = ${n*16}px（基准 16px）`:`${n}px = ${n/16}rem（基准 16px）`}

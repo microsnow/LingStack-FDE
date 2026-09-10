@@ -68,7 +68,8 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
   }
   if (id === "csv2json" || id === "csvpreview") {
     const result = Papa.parse<Record<string, string>>(input, { header: true, skipEmptyLines: true });
-    if (result.errors.length) throw new Error(`CSV 第 ${result.errors[0].row + 1} 行：${result.errors[0].message}`);
+    const firstError = result.errors[0];
+    if (firstError) throw new Error(`CSV 第 ${(firstError.row ?? 0) + 1} 行：${firstError.message}`);
     if (id === "csv2json") return JSON.stringify(result.data, null, 2);
     const headers = result.meta.fields ?? [], rows = id === "csvpreview" ? [...result.data].sort((a, b) => (a[headers[0]] ?? "").localeCompare(b[headers[0]] ?? "", "zh-CN", { numeric: true })) : result.data;
     return [headers.join(" | "), headers.map(() => "---").join(" | "), ...rows.map(row => headers.map(key => row[key] ?? "").join(" | "))].join("\n");

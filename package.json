@@ -6,9 +6,9 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "vinext dev",
-    "build": "vinext build",
-    "start": "vinext start",
+    "dev": "vite",
+    "build": "node scripts/clean-build.mjs && vite build",
+    "start": "vite preview",
     "test": "npm run build && tsx --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
@@ -21,7 +21,7 @@
     "drizzle-orm": "0.45.2",
     "fast-xml-parser": "^5.10.1",
     "marked": "^18.0.7",
-    "next": "16.2.6",
+    "next": "16.3.4",
     "opencc-js": "^1.4.1",
     "papaparse": "^5.5.4",
     "pinyin-pro": "^3.28.1",

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { runP0Tool } from "../lib/p0-tools";
+import { nextRecentTools, sensitiveToolIds } from "../lib/tool-policy";
 
 test("converts YAML, XML and CSV formats", async () => {
   assert.deepEqual(JSON.parse((await runP0Tool("yaml2json", "name: DevKit\nversion: 4"))!), { name: "DevKit", version: 4 });
@@ -24,16 +25,46 @@ test("handles text utilities and markdown", async () => {
   assert.match((await runP0Tool("markdown", "# DevKit\n\n- 本地处理"))!, /<h1>DevKit<\/h1>/);
 });
 
-test("production render contains the product and current tool count", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  const response = await worker.fetch(new Request("http://localhost/"), { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } }, { waitUntil() {}, passThroughOnException() {} });
-  const html = await response.text();
-  assert.equal(response.status, 200);
+test("reports malformed input without hiding the relevant location", async () => {
+  await assert.rejects(runP0Tool("json2xml", '{"name":}'), /JSON 解析失败/);
+  await assert.rejects(runP0Tool("csv2json", 'name,version\n"DevKit,4'), /CSV 第 2 行/);
+  await assert.rejects(runP0Tool("propertiesyaml", "app.name"), /Properties 行缺少/);
+  await assert.rejects(runP0Tool("findreplace", "查找: DevKit\n没有分隔行"), /--- 文本 ---/);
+});
+
+test("covers every P0 tool with a representative result", async () => {
+  const cases: Array<[string, string, RegExp, string?]> = [
+    ["yaml2json", "name: DevKit", /\"name\": \"DevKit\"/],
+    ["json2xml", '{"name":"DevKit"}', /<name>DevKit<\/name>/],
+    ["xml2json", "<name>DevKit</name>", /\"name\": \"DevKit\"/],
+    ["json2csv", '[{"name":"DevKit"}]', /name.*DevKit/s],
+    ["csv2json", "name,version\nDevKit,4", /\"name\": \"DevKit\"/],
+    ["jsonschema", '{"schema":{"type":"string"},"data":"ok"}', /校验通过/],
+    ["yamlformat", "name: DevKit", /name: DevKit/],
+    ["xmlformat", "<name>DevKit</name>", /<name>DevKit<\/name>/],
+    ["webformat", "const value=1", /const value = 1;/, "javascript"],
+    ["csvpreview", "name,version\nDevKit,4", /name \| version.*DevKit \| 4/s],
+    ["propertiesyaml", "app.name=DevKit", /app:.*name: DevKit/s],
+    ["findreplace", "查找: A\n替换: B\n--- 文本 ---\nA", /^B$/],
+    ["linefilter", "包含: A\n排除:\n--- 文本 ---\nA\nB", /^A$/],
+    ["shuffle", "only", /^only$/],
+    ["mdtable", "name,version\nDevKit,4", /\| name \| version \|.*\| DevKit \| 4 \|/s],
+  ];
+  for (const [id, input, expected, action] of cases) assert.match((await runP0Tool(id, input, action))!, expected, id);
+});
+
+test("does not add sensitive tools to recent history", () => {
+  const current = ["json", "base64"];
+  for (const id of sensitiveToolIds) assert.deepEqual(nextRecentTools(current, id), current, id);
+  assert.deepEqual(nextRecentTools(current, "yaml"), ["yaml", "json", "base64"]);
+});
+
+test("fresh static production build contains the product and current tool count", async () => {
+  const html = await readFile(new URL("../dist/index.html", import.meta.url), "utf8");
   assert.match(html, /DevKit · 开发者工具箱/);
-  assert.match(html, /搜索 74 个工具/);
+  assert.match(html, /74 个隐私优先/);
   assert.doesNotMatch(html, /Your site is taking shape|Codex is working/);
+  await assert.rejects(readFile(new URL("../dist/server/index.js", import.meta.url)), error => (error as NodeJS.ErrnoException).code === "ENOENT");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /拖放|onDrop/);
   assert.match(page, /自动执行/);
