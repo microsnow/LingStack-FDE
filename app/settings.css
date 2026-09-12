@@ -1,0 +1,11 @@
+.settings-shell { max-width: 1040px; margin: 0 auto; padding: 72px 28px; }
+.settings-shell h1 { margin: 8px 0 12px; font-size: clamp(34px, 5vw, 58px); }
+.settings-intro, .settings-note { color: var(--muted); line-height: 1.7; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 34px 0 22px; }
+.settings-card { border: 1px solid var(--line); border-radius: 18px; padding: 24px; background: var(--panel); }
+.settings-card h2 { margin: 0 0 10px; font-size: 19px; }
+.settings-card p { min-height: 54px; color: var(--muted); line-height: 1.6; }
+.settings-card button { border: 0; border-radius: 10px; padding: 11px 16px; color: #03131a; background: var(--accent); cursor: pointer; font-weight: 700; }
+.settings-card button:disabled { cursor: wait; opacity: .55; }
+.settings-message { padding: 13px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); }
+@media (max-width: 720px) { .settings-grid { grid-template-columns: 1fr; } .settings-shell { padding: 42px 18px; } }

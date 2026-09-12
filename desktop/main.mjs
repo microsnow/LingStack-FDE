@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, protocol, shell } from "electron";
 import { readFile } from "node:fs/promises";
 import { extname, isAbsolute, join, normalize, relative } from "node:path";
+import { loadSmartAssets, saveSmartAssets } from "./asset-store.mjs";
 import { scanSkillRoots } from "./skill-scanner.mjs";
 import { addSkillRoot, listSkillRoots, removeSkillRoot, updateSkillRoot } from "./skill-roots.mjs";
 import { watchSkillRoots } from "./skill-watcher.mjs";
@@ -176,6 +177,14 @@ app.whenReady().then(() => {
   ipcMain.handle("fde:read-clipboard", event => {
     assertTrustedSender(event);
     return clipboard.readText();
+  });
+  ipcMain.handle("fde:load-smart-assets", event => {
+    assertTrustedSender(event);
+    return loadSmartAssets(app.getPath("userData"));
+  });
+  ipcMain.handle("fde:save-smart-assets", async (event, assets) => {
+    assertTrustedSender(event);
+    await saveSmartAssets(app.getPath("userData"), assets);
   });
   ipcMain.handle("fde:list-skill-roots", async event => {
     assertTrustedSender(event);

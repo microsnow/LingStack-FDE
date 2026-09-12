@@ -1,8 +1,3 @@
-import { XMLBuilder, XMLParser } from "fast-xml-parser";
-import Papa from "papaparse";
-import { marked } from "marked";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-
 export const p0Samples: Record<string, string> = {
   yaml2json: "name: DevKit\nversion: 4\nfeatures:\n  - local\n  - private",
   json2xml: '{"project":{"name":"DevKit","version":4}}',
@@ -26,10 +21,6 @@ function json(value: string) {
     const message = error instanceof Error ? error.message : "语法无效";
     throw new Error(`JSON 解析失败：${message}`);
   }
-}
-
-function xmlParser() {
-  return new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true, trimValues: true });
 }
 
 function validateSchema(schema: Record<string, unknown>, data: unknown, path = "$"): string[] {
@@ -59,14 +50,26 @@ function splitConfig(value: string) {
 }
 
 export async function runP0Tool(id: string, input: string, action = "primary"): Promise<string | null> {
-  if (id === "yaml2json") return JSON.stringify(parseYaml(input), null, 2);
-  if (id === "json2xml") return new XMLBuilder({ ignoreAttributes: false, format: true }).build(json(input));
-  if (id === "xml2json") return JSON.stringify(xmlParser().parse(input), null, 2);
+  if (id === "yaml2json") {
+    const { parse } = await import("yaml");
+    return JSON.stringify(parse(input), null, 2);
+  }
+  if (id === "json2xml") {
+    const { XMLBuilder } = await import("fast-xml-parser");
+    return new XMLBuilder({ ignoreAttributes: false, format: true }).build(json(input));
+  }
+  if (id === "xml2json") {
+    const { XMLParser } = await import("fast-xml-parser");
+    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true, trimValues: true });
+    return JSON.stringify(parser.parse(input), null, 2);
+  }
   if (id === "json2csv") {
+    const Papa = (await import("papaparse")).default;
     const data = json(input); if (!Array.isArray(data)) throw new Error("JSON 顶层必须是对象数组");
     return Papa.unparse(data);
   }
   if (id === "csv2json" || id === "csvpreview") {
+    const Papa = (await import("papaparse")).default;
     const result = Papa.parse<Record<string, string>>(input, { header: true, skipEmptyLines: true });
     const firstError = result.errors[0];
     if (firstError) throw new Error(`CSV 第 ${(firstError.row ?? 0) + 1} 行：${firstError.message}`);
@@ -80,8 +83,15 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
     const errors = validateSchema(value.schema, value.data);
     return errors.length ? `校验未通过（${errors.length} 项）\n${errors.map((x, i) => `${i + 1}. ${x}`).join("\n")}` : "校验通过：数据符合 Schema。";
   }
-  if (id === "yamlformat") return stringifyYaml(parseYaml(input), { indent: 2 });
-  if (id === "xmlformat") return new XMLBuilder({ ignoreAttributes: false, format: true }).build(xmlParser().parse(input));
+  if (id === "yamlformat") {
+    const { parse, stringify } = await import("yaml");
+    return stringify(parse(input), { indent: 2 });
+  }
+  if (id === "xmlformat") {
+    const { XMLBuilder, XMLParser } = await import("fast-xml-parser");
+    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true, trimValues: true });
+    return new XMLBuilder({ ignoreAttributes: false, format: true }).build(parser.parse(input));
+  }
   if (id === "webformat") {
     const parser = action === "html" ? "html" : action === "css" ? "css" : "babel";
     const prettier = await import("prettier/standalone");
@@ -89,8 +99,9 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
     return prettier.format(input, { parser, plugins, printWidth: 100 });
   }
   if (id === "propertiesyaml") {
+    const { parse, stringify } = await import("yaml");
     if (action === "properties") {
-      const value = parseYaml(input) as Record<string, unknown>;
+      const value = parse(input) as Record<string, unknown>;
       const flatten = (object: Record<string, unknown>, prefix = ""): string[] => Object.entries(object).flatMap(([key, child]) => child && typeof child === "object" && !Array.isArray(child) ? flatten(child as Record<string, unknown>, `${prefix}${key}.`) : [`${prefix}${key}=${String(child)}`]);
       return flatten(value).join("\n");
     }
@@ -100,7 +111,7 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
       const keys = line.slice(0, index).trim().split("."); let target = root;
       keys.forEach((key, i) => { if (i === keys.length - 1) target[key] = line.slice(index + 1).trim(); else target = target[key] = (target[key] as Record<string, unknown>) ?? {}; });
     }
-    return stringifyYaml(root);
+    return stringify(root);
   }
   if (id === "findreplace") { const { config, text } = splitConfig(input); return text.split(config["查找"] ?? "").join(config["替换"] ?? ""); }
   if (id === "linefilter") {
@@ -111,9 +122,13 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
     const lines = input.split(/\r?\n/); crypto.getRandomValues(new Uint32Array(lines.length)).forEach((value, index) => { const target = index + value % (lines.length - index); [lines[index], lines[target]] = [lines[target], lines[index]]; }); return lines.join("\n");
   }
   if (id === "mdtable") {
+    const Papa = (await import("papaparse")).default;
     const parsed = Papa.parse<string[]>(input, { skipEmptyLines: true }); if (parsed.errors.length || !parsed.data.length) throw new Error("请输入有效 CSV 数据");
     const [head, ...rows] = parsed.data; return [`| ${head.join(" | ")} |`, `| ${head.map(() => "---").join(" | ")} |`, ...rows.map(row => `| ${row.join(" | ")} |`)].join("\n");
   }
-  if (id === "markdown") return marked.parse(input, { gfm: true, breaks: true }) as string;
+  if (id === "markdown") {
+    const { marked } = await import("marked");
+    return marked.parse(input, { gfm: true, breaks: true }) as string;
+  }
   return null;
 }

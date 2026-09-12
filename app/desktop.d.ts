@@ -1,3 +1,5 @@
+import type { SmartAsset } from "../lib/smart-assets";
+
 export {};
 
 export type SkillRisk = "low" | "medium" | "high";
@@ -35,6 +37,8 @@ declare global {
     fdeDesktop?: {
       platform: string;
       readClipboardText(): Promise<string>;
+      loadSmartAssets(): Promise<unknown[] | null>;
+      saveSmartAssets(assets: SmartAsset[]): Promise<void>;
       listSkillRoots(): Promise<SkillRoot[]>;
       scanSkills(): Promise<SkillScanResult>;
       addSkillRoot(): Promise<SkillRoot | null>;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { runP0Tool } from "../lib/p0-tools";
 import { nextRecentTools, sensitiveToolIds } from "../lib/tool-policy";
 
@@ -72,4 +72,12 @@ test("fresh static production build contains the product and current tool count"
   assert.match(desktopMain, /contextIsolation: true/);
   assert.match(desktopMain, /nodeIntegration: false/);
   assert.match(desktopMain, /sandbox: true/);
+});
+
+test("keeps the initial application script below 500 KB", async () => {
+  const html = await readFile(new URL("../dist/index.html", import.meta.url), "utf8");
+  const source = html.match(/<script[^>]+src="\.\/(assets\/index-[^"]+\.js)"/)?.[1];
+  assert.ok(source, "找不到生产构建入口脚本");
+  const entry = await stat(new URL(`../dist/${source}`, import.meta.url));
+  assert.ok(entry.size < 500 * 1024, `入口脚本过大：${entry.size} bytes`);
 });

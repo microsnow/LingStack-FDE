@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("fdeDesktop", {
   platform: process.platform,
   readClipboardText: () => ipcRenderer.invoke("fde:read-clipboard"),
+  loadSmartAssets: () => ipcRenderer.invoke("fde:load-smart-assets"),
+  saveSmartAssets: assets => ipcRenderer.invoke("fde:save-smart-assets", assets),
   listSkillRoots: () => ipcRenderer.invoke("fde:list-skill-roots"),
   scanSkills: () => ipcRenderer.invoke("fde:scan-skills"),
   addSkillRoot: () => ipcRenderer.invoke("fde:add-skill-root"),

@@ -1,18 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import AssetCenter from "./asset-center";
+import { lazy, Suspense, useState } from "react";
 import { FdeNavigation, type FdeModule } from "./fde-navigation";
-import Home from "./page";
-import SkillsCenter from "./skills-center";
+
+const AssetCenter = lazy(() => import("./asset-center"));
+const Home = lazy(() => import("./page"));
+const SkillsCenter = lazy(() => import("./skills-center"));
+const SettingsCenter = lazy(() => import("./settings-center"));
 
 const MODULE_KEY = "fde.active-module";
+
+function ModuleLoading() {
+  return (
+    <main className="fde-page-shell" aria-busy="true">
+      <section className="fde-placeholder">
+        <p className="eyebrow">LINGSTACK FDE</p>
+        <h1>正在打开模块…</h1>
+      </section>
+    </main>
+  );
+}
 
 function Placeholder({
   module,
   onNavigate,
 }: {
-  module: "home" | "settings";
+  module: "home";
   onNavigate: (value: FdeModule) => void;
 }) {
   const content = {
@@ -21,13 +34,8 @@ function Placeholder({
       "灵栈 FDE 正在从 DevKit 工具箱扩展为本地开发工作台。",
       "打开提示词中心",
     ],
-    settings: [
-      "灵栈设置",
-      "桌面目录、智能资产备份、安全权限和外观设置将在这里统一管理。",
-      "返回工具中心",
-    ],
   }[module];
-  const target: FdeModule = module === "settings" ? "devkit" : "prompts";
+  const target: FdeModule = "prompts";
   return (
     <main className="fde-page-shell">
       <header className="fde-page-header">
@@ -97,13 +105,10 @@ export default function Workbench() {
     localStorage.setItem(MODULE_KEY, next);
     window.scrollTo(0, 0);
   }
-  if (module === "devkit") return <Home onNavigate={navigate} />;
-  if (module === "prompts")
-    return <AssetCenter key={module} kind="prompt" onNavigate={navigate} />;
-  if (module === "media")
-    return (
-      <AssetCenter key={module} kind="media-prompt" onNavigate={navigate} />
-    );
-  if (module === "skills") return <SkillsCenter onNavigate={navigate} />;
+  if (module === "devkit") return <Suspense fallback={<ModuleLoading />}><Home onNavigate={navigate} /></Suspense>;
+  if (module === "prompts") return <Suspense fallback={<ModuleLoading />}><AssetCenter key={module} kind="prompt" onNavigate={navigate} /></Suspense>;
+  if (module === "media") return <Suspense fallback={<ModuleLoading />}><AssetCenter key={module} kind="media-prompt" onNavigate={navigate} /></Suspense>;
+  if (module === "skills") return <Suspense fallback={<ModuleLoading />}><SkillsCenter onNavigate={navigate} /></Suspense>;
+  if (module === "settings") return <Suspense fallback={<ModuleLoading />}><SettingsCenter onNavigate={navigate} /></Suspense>;
   return <Placeholder module={module} onNavigate={navigate} />;
 }

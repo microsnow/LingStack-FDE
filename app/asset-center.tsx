@@ -67,11 +67,56 @@ export default function AssetCenter({
   const [filter, setFilter] = useState("全部");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [desktopStorageReady, setDesktopStorageReady] = useState(
+    !window.fdeDesktop,
+  );
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     localStorage.setItem(ASSET_STORAGE_KEY, JSON.stringify(assets));
-  }, [assets]);
+    if (desktopStorageReady) {
+      void window.fdeDesktop?.saveSmartAssets(assets).catch((error) =>
+        setMessage(
+          error instanceof Error ? error.message : "桌面智能资产保存失败",
+        ),
+      );
+    }
+  }, [assets, desktopStorageReady]);
+
+  useEffect(() => {
+    const desktop = window.fdeDesktop;
+    if (!desktop) return;
+    let active = true;
+    void desktop
+      .loadSmartAssets()
+      .then(async (stored) => {
+        if (!active) return;
+        if (stored === null) {
+          await desktop.saveSmartAssets(assets);
+          return;
+        }
+        const normalized = stored
+          .map(normalizeAsset)
+          .filter((asset): asset is SmartAsset => Boolean(asset));
+        const next = normalized.length ? normalized : defaultAssets;
+        setAssets(next);
+        setSelectedId(next.find((asset) => asset.kind === kind)?.id ?? "");
+      })
+      .catch((error) => {
+        if (active)
+          setMessage(
+            error instanceof Error ? error.message : "桌面智能资产加载失败",
+          );
+      })
+      .finally(() => {
+        if (active) setDesktopStorageReady(true);
+      });
+    return () => {
+      active = false;
+    };
+    // The initial browser snapshot is intentionally migrated only once per module mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
 
   const kindAssets = useMemo(
     () => assets.filter((asset) => asset.kind === kind && !asset.archived),

@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, join, resolve } from "node:path";
 
@@ -22,7 +22,15 @@ async function readCustomRoots(userData) {
 
 async function saveCustomRoots(userData, roots) {
   await mkdir(userData, { recursive: true });
-  await writeFile(join(userData, CONFIG_FILE), JSON.stringify(roots, null, 2), "utf8");
+  const destination = join(userData, CONFIG_FILE);
+  const temporary = `${destination}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(roots, null, 2), "utf8");
+    await rename(temporary, destination);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
 }
 
 export async function listSkillRoots(home, userData) {

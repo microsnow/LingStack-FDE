@@ -3,7 +3,7 @@
   "productName": "灵栈 FDE",
   "description": "本地优先、可扩展的开发者桌面工作台",
   "author": "FDE Contributors",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "private": true,
   "main": "desktop/main.mjs",
   "engines": {

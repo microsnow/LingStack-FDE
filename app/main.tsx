@@ -4,6 +4,7 @@ import Workbench from "./workbench";
 import "./globals.css";
 import "./v2.css";
 import "./assets.css";
+import "./settings.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
