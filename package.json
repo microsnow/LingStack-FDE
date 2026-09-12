@@ -1,14 +1,25 @@
 {
-  "name": "site-creator-vinext-starter",
-  "version": "0.4.0",
+  "name": "fde-developer-workbench",
+  "productName": "灵栈 FDE",
+  "description": "本地优先、可扩展的开发者桌面工作台",
+  "author": "FDE Contributors",
+  "version": "0.7.4",
   "private": true,
+  "main": "desktop/main.mjs",
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/clean-build.mjs && vite build",
+    "build:icons": "node scripts/build-icons.mjs",
+    "build": "npm run build:icons && node scripts/clean-build.mjs && vite build",
     "start": "vite preview",
+    "desktop:dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env FDE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "desktop:dir": "npm run build && electron-builder --dir",
+    "desktop:dir:offline": "npm run build && electron-builder --dir --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
+    "desktop:pack": "npm run build && electron-builder",
+    "desktop:smoke": "electron . --smoke-test",
+    "desktop:skills-smoke": "electron . --skills-smoke-test",
     "test": "npm run build && tsx --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
@@ -39,7 +50,11 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.0.0",
     "drizzle-kit": "0.31.10",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "react-server-dom-webpack": "19.2.6",
@@ -48,7 +63,41 @@
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
+    "wait-on": "^9.1.0",
     "wrangler": "4.92.0"
+  },
+  "build": {
+    "appId": "dev.fde.workbench",
+    "productName": "灵栈 FDE",
+    "artifactName": "LingStack-FDE-${version}-${arch}.${ext}",
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "public/favicon.svg",
+      "public/icon.png",
+      "package.json"
+    ],
+    "protocols": [
+      {
+        "name": "灵栈 FDE",
+        "schemes": [
+          "fde"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
   "type": "module"
 }

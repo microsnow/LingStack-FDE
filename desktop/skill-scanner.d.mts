@@ -1,0 +1,41 @@
+export type SkillRisk = "low" | "medium" | "high";
+export type SkillAnalysis = {
+  name: string;
+  description: string;
+  warnings: string[];
+  capabilities: string[];
+  risk: SkillRisk;
+  body: string;
+};
+export type WorkbuddySkill = {
+  id: string;
+  rootId: string;
+  rootLabel: string;
+  platform: string;
+  name: string;
+  description: string;
+  directory: string;
+  relativePath: string;
+  modifiedAt: string;
+  size: number;
+  risk: SkillRisk;
+  warnings: string[];
+  capabilities: string[];
+  tree: { path: string; type: "directory" | "file"; depth: number }[];
+  preview: string;
+};
+export type SkillRootConfig = { id: string; label: string; path: string; platform: string; enabled: boolean; readOnly: boolean; isDefault: boolean; priority: number; maxDepth: number };
+export type SkillRootStatus = SkillRootConfig & { available: boolean; count: number; error: string };
+export type SkillCatalog = { roots: SkillRootStatus[]; scannedAt: string; durationMs: number; truncated: boolean; skills: WorkbuddySkill[]; summary: { total: number; valid: number; warnings: number; duplicates: number; highRisk: number } };
+export const WORKBUDDY_SKILLS_ROOT: string;
+export function analyzeSkillDocument(content: string, fallbackName?: string): SkillAnalysis;
+export function scanSkillRoot(root: SkillRootConfig): Promise<{ root: string; scannedAt: string; durationMs: number; truncated: boolean; skills: WorkbuddySkill[]; summary: SkillCatalog["summary"] }>;
+export function scanSkillRoots(roots: SkillRootConfig[]): Promise<SkillCatalog>;
+export function scanWorkbuddySkills(root?: string): Promise<{
+  root: string;
+  scannedAt: string;
+  durationMs: number;
+  truncated: boolean;
+  skills: WorkbuddySkill[];
+  summary: { total: number; valid: number; warnings: number; duplicates: number; highRisk: number };
+}>;

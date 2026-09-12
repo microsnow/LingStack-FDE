@@ -10,11 +10,11 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers(), host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost", protocol = requestHeaders.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https"), image = `${protocol}://${host}/og.png`;
   return {
-    title: "DevKit · 开发者工具箱",
+    title: "灵栈 FDE · 开发者工作台",
     description: "74 个隐私优先、离线优先的开发者工具。",
     icons: { icon: "/favicon.svg" },
-    openGraph: { title: "DevKit · 开发者工具箱", description: "74 个本地开发工具，数据不外传。", images: [{ url: image, width: 1200, height: 630 }] },
-    twitter: { card: "summary_large_image", title: "DevKit · 开发者工具箱", description: "74 个本地开发工具，数据不外传。", images: [image] },
+    openGraph: { title: "灵栈 FDE · 开发者工作台", description: "74 个本地开发工具，数据不外传。", images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title: "灵栈 FDE · 开发者工作台", description: "74 个本地开发工具，数据不外传。", images: [image] },
   };
 }
 
