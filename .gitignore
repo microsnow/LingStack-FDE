@@ -45,3 +45,4 @@ next-env.d.ts
 # Sites deployment staging artifacts
 /build/devkit-*.tar.gz
 /build/package-site.sh
+/release/
