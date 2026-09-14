@@ -3,6 +3,7 @@
 .favorite:hover,.favorite.on,.head-favorite.on{color:#f0d36b}
 .head-favorite{margin-left:auto;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:6px;padding:6px 9px;font-size:9px;cursor:pointer}
 .workspace-head .secure{margin-left:6px}
+.tool-card .tool-badges{position:absolute;right:9px;top:8px;display:flex;gap:4px}.tool-card .tool-badges em{position:static}.tool-card .capability-tag.network{color:#62b4ff;background:#152d42}.tool-card .capability-tag.ai{color:#ba91ff;background:#2d2142}.secure.network{color:#62b4ff}.secure.ai{color:#ba91ff}@media(max-width:720px){.secure.network,.secure.ai{display:inline}}
 .empty{height:110px;border:1px dashed var(--line);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:7px}
 .empty b{color:var(--text);font-size:12px}
 .empty span{font-size:9px}

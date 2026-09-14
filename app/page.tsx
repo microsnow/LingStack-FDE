@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { p0Samples, runP0Tool } from "../lib/p0-tools";
+import { runP0Tool } from "../lib/p0-tools";
 import { nextRecentTools, sensitiveToolIds } from "../lib/tool-policy";
 import { FdeNavigation, type FdeModule } from "./fde-navigation";
 import { categories, tools } from "../lib/tool-catalog";
+import type { ToolCapability } from "../lib/tool-catalog";
+import { toolSamples as samples } from "../lib/tool-samples";
+import { cipherRun, type CipherName } from "../lib/cipher-tools";
+import { convertChinese } from "../lib/chinese-converter";
+
+const capabilityPresentation: Record<ToolCapability, { label: string; detail: string }> = {
+  local: { label: "● 本地安全处理", detail: "输入与结果只在本机处理。" },
+  network: { label: "● 需要联网", detail: "执行时可能向外部服务发送输入；发送前必须说明数据去向。" },
+  ai: { label: "● AI 能力", detail: "执行时可能向所选模型发送输入；发送前必须说明模型和数据范围。" },
+};
 
 const icons = ["◈", "★", "◷", "⇄", "✓", "T", "⌯", "∿", "◇", "⎔", "✦"];
 
@@ -74,41 +84,6 @@ function luminance(hex: string) {
     );
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 }
-type CipherName = "aes" | "des" | "tripledes" | "rabbit" | "rc4";
-function cipherInput(value: string) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error('请输入 JSON，例如 {"text":"内容","key":"口令"}');
-  }
-  if (!parsed || typeof parsed !== "object")
-    throw new Error("输入必须是 JSON 对象");
-  const { text, key } = parsed as Record<string, unknown>;
-  if (typeof text !== "string" || typeof key !== "string" || !key)
-    throw new Error("text 必须是字符串，key 必须是非空字符串");
-  return { text, key };
-}
-async function cipherRun(name: CipherName, decrypt: boolean, value: string) {
-  const { default: CryptoJS } = await import("crypto-js");
-  const { text, key } = cipherInput(value);
-  const algorithms = {
-    aes: CryptoJS.AES,
-    des: CryptoJS.DES,
-    tripledes: CryptoJS.TripleDES,
-    rabbit: CryptoJS.Rabbit,
-    rc4: CryptoJS.RC4,
-  };
-  if (!decrypt) return algorithms[name].encrypt(text, key).toString();
-  let result = "";
-  try {
-    result = algorithms[name].decrypt(text, key).toString(CryptoJS.enc.Utf8);
-  } catch {
-    throw new Error("解密失败，请检查密文和口令");
-  }
-  if (!result && text) throw new Error("解密结果为空，请检查密文和口令");
-  return result;
-}
 function crc32(value: string) {
   let crc = 0xffffffff;
   for (const byte of new TextEncoder().encode(value)) {
@@ -116,12 +91,6 @@ function crc32(value: string) {
     for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
   }
   return (crc ^ 0xffffffff) >>> 0;
-}
-async function convertChinese(value: string, toSimplified: boolean) {
-  const { Converter } = await import("opencc-js");
-  return Converter(
-    toSimplified ? { from: "tw", to: "cn" } : { from: "cn", to: "tw" },
-  )(value);
 }
 function rmbUppercase(value: string) {
   const normalized = value.trim().replace(/[￥¥,，\s]/g, "");
@@ -287,81 +256,6 @@ function dateDetails(date: Date) {
   return `日期：${formatLocalDate(date)}\n本地时间：${formatLocalDateTime(date)}\nISO 8601：${date.toISOString()}\n时间戳秒：${Math.floor(date.getTime() / 1000)}\n时间戳毫秒：${date.getTime()}`;
 }
 
-const samples: Record<string, string> = {
-  json: '{"project":"DevKit","ready":true,"tools":["JSON","Base64","UUID"]}',
-  base64: "开发者工具箱",
-  url: "https://example.com/search?q=开发者工具",
-  unicode: "你好，DevKit",
-  timestamp: String(Math.floor(Date.now() / 1000)),
-  datecalc: "2026-07-15\n2026-07-22 00:12:31",
-  dateconvert:
-    "20260715\n2026-07-15\n2026-07-15 00:00:00\n2026-07-22T00:12:31.000Z\n2026-07-22T00:12:31",
-  radix: "255",
-  chinese: "开发者工具箱，让编码转换更简单。",
-  case: "Hello DevKit 你好",
-  ascii: "DevKit 你好",
-  escape: '第一行\n第二行："DevKit"',
-  rmb: "123456.78",
-  pinyin: "开发者工具箱",
-  hash: "Hello DevKit",
-  uuid: "5",
-  password: "16",
-  text: "Hello DevKit\n这是一段测试文本。",
-  regex: "/dev(kit)?/gi\nDevKit makes dev work easier.",
-  jwt: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiRGV2S2l0IiwiaWF0IjoxNTE2MjM5MDIyfQ.signature",
-  json2ts: '{"name":"DevKit","version":2,"ready":true}',
-  query: "https://example.com/search?q=devkit&page=2",
-  color: "#41e0c2",
-  markdown:
-    "# DevKit\n\n**私密、高效**的 `开发者工具箱`\n\n- 本地处理\n- 即开即用",
-  diff: "原来的第一行\n相同内容\n--- 对比 ---\n修改后的第一行\n相同内容",
-  naming: "hello developer toolbox",
-  entities: '<button title="DevKit">开始</button>',
-  cron: "*/15 9-18 * * 1-5",
-  curl: "curl -X POST https://api.example.com/users -H 'Content-Type: application/json' -d '{\"name\":\"DevKit\"}'",
-  cidr: "192.168.1.10/24",
-  units: "24",
-  contrast: "#41e0c2\n#091011",
-  sql: "select id,name from users where active=1 order by created_at desc",
-  yaml: '{"name":"DevKit","version":3,"features":["local","fast"]}',
-};
-
-Object.assign(samples, {
-  dedupe: "苹果\n香蕉\n苹果\n橙子\n香蕉",
-  sortlines: "项目10\n项目2\n苹果\n香蕉\n项目1",
-});
-Object.assign(samples, {
-  "md5-32-lower": "Hello DevKit",
-  "md5-32-upper": "Hello DevKit",
-  "md5-16-lower": "Hello DevKit",
-  "md5-16-upper": "Hello DevKit",
-  sha1: "Hello DevKit",
-  "sha2-256": "Hello DevKit",
-  "sha2-512": "Hello DevKit",
-  "sha3-512": "Hello DevKit",
-  "sha3-384": "Hello DevKit",
-  "sha3-256": "Hello DevKit",
-  "sha3-224": "Hello DevKit",
-  "ripemd-160": "Hello DevKit",
-  "crc32-64": "Hello DevKit",
-  "aes-encrypt": '{"text":"Hello DevKit","key":"change-this-passphrase"}',
-  "des-encrypt": '{"text":"Hello DevKit","key":"change-this-passphrase"}',
-  "tripledes-encrypt": '{"text":"Hello DevKit","key":"change-this-passphrase"}',
-  "rabbit-encrypt": '{"text":"Hello DevKit","key":"change-this-passphrase"}',
-  "rc4-encrypt": '{"text":"Hello DevKit","key":"change-this-passphrase"}',
-  "aes-decrypt":
-    '{"text":"粘贴 AES_Encrypt 输出的密文","key":"change-this-passphrase"}',
-  "des-decrypt":
-    '{"text":"粘贴 DES_Encrypt 输出的密文","key":"change-this-passphrase"}',
-  "tripledes-decrypt":
-    '{"text":"粘贴 TripleDES_Encrypt 输出的密文","key":"change-this-passphrase"}',
-  "rabbit-decrypt":
-    '{"text":"粘贴 Rabbit_Encrypt 输出的密文","key":"change-this-passphrase"}',
-  "rc4-decrypt":
-    '{"text":"粘贴 RC4_Encrypt 输出的密文","key":"change-this-passphrase"}',
-});
-Object.assign(samples, p0Samples);
-
 export default function Home({
   onNavigate,
 }: { onNavigate?: (module: FdeModule) => void } = {}) {
@@ -390,6 +284,7 @@ export default function Home({
   const searchRef = useRef<HTMLInputElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
   const current = tools.find((t) => t.id === active) ?? tools[0];
+  const currentCapability = capabilityPresentation[current.capability];
   useEffect(() => {
     queueMicrotask(() => {
       try {
@@ -981,7 +876,7 @@ export default function Home({
           <span>◉</span>
           <div>
             <b>隐私优先</b>
-            <p>输入内容仅在本机浏览器中处理。</p>
+            <p>本地工具不会上传输入；联网与 AI 工具会单独标识。</p>
           </div>
         </div>
         <div className="version">
@@ -1032,7 +927,16 @@ export default function Home({
                   <b>{t.name}</b>
                   <small>{t.desc}</small>
                 </span>
-                {t.tag && <em>{t.tag}</em>}
+                {(t.tag || t.capability !== "local") && (
+                  <span className="tool-badges">
+                    {t.tag && <em>{t.tag}</em>}
+                    {t.capability !== "local" && (
+                      <em className={`capability-tag ${t.capability}`}>
+                        {capabilityPresentation[t.capability].label.replace("● ", "")}
+                      </em>
+                    )}
+                  </span>
+                )}
                 <button
                   className={`favorite ${favorites.includes(t.id) ? "on" : ""}`}
                   onClick={(e) => {
@@ -1095,7 +999,12 @@ export default function Home({
             >
               ★ {favorites.includes(active) ? "已收藏" : "收藏"}
             </button>
-            <span className="secure">● 本地安全处理</span>
+            <span
+              className={`secure ${current.capability}`}
+              title={currentCapability.detail}
+            >
+              {currentCapability.label}
+            </span>
           </div>
           {active === "password" ? (
             <div className="password-workspace">

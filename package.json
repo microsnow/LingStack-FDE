@@ -18,8 +18,10 @@
     "desktop:dir": "npm run build && electron-builder --dir",
     "desktop:dir:offline": "npm run build && electron-builder --dir --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
     "desktop:pack": "npm run build && electron-builder",
+    "desktop:pack:offline": "npm run build && electron-builder --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
     "desktop:smoke": "electron . --smoke-test",
     "desktop:skills-smoke": "electron . --skills-smoke-test",
+    "release:verify": "node scripts/verify-release.mjs",
     "test": "npm run build && tsx --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
@@ -69,7 +71,6 @@
   "build": {
     "appId": "dev.fde.workbench",
     "productName": "灵栈 FDE",
-    "artifactName": "LingStack-FDE-${version}-${arch}.${ext}",
     "files": [
       "dist/**/*",
       "desktop/**/*",
@@ -93,10 +94,14 @@
       ]
     },
     "nsis": {
+      "artifactName": "LingStack-FDE-Setup-${version}-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "LingStack-FDE-Portable-${version}-${arch}.${ext}"
     }
   },
   "type": "module"

@@ -8,5 +8,8 @@ export default defineConfig({
   build: {
     // The build script clears dist first; keep this explicit for direct Vite use too.
     emptyOutDir: true,
+    // The largest lazy chunk is OpenCC's phrase dictionary. It is loaded only when
+    // Chinese conversion runs and is smaller than the package's all-locales bundle.
+    chunkSizeWarningLimit: 1100,
   },
 });

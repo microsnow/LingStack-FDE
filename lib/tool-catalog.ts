@@ -7,6 +7,7 @@ export type Category =
   | "前端工具"
   | "后端工具"
   | "数据生成";
+export type ToolCapability = "local" | "network" | "ai";
 export type Tool = {
   id: string;
   name: string;
@@ -14,10 +15,19 @@ export type Tool = {
   icon: string;
   color: string;
   category: Category;
+  capability: ToolCapability;
   tag?: string;
 };
 
-export const tools: Tool[] = [
+type ToolDefinition = Omit<Tool, "capability">;
+
+const connectedToolCapabilities: Record<string, Exclude<ToolCapability, "local">> = {};
+
+export function getToolCapability(id: string): ToolCapability {
+  return connectedToolCapabilities[id] ?? "local";
+}
+
+const toolDefinitions: ToolDefinition[] = [
   {
     id: "json",
     name: "JSON 格式化",
@@ -678,6 +688,11 @@ export const tools: Tool[] = [
     tag: "新",
   },
 ];
+
+export const tools: Tool[] = toolDefinitions.map((tool) => ({
+  ...tool,
+  capability: getToolCapability(tool.id),
+}));
 
 export const categories = [
   "全部工具",
