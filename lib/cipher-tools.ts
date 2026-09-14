@@ -1,16 +1,18 @@
+import { inputError, parseJson } from "./tool-errors";
+
 export type CipherName = "aes" | "des" | "tripledes" | "rabbit" | "rc4";
 
 function cipherInput(value: string) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error('请输入 JSON，例如 {"text":"内容","key":"口令"}');
-  }
-  if (!parsed || typeof parsed !== "object") throw new Error("输入必须是 JSON 对象");
+  const parsed = parseJson(value);
+  if (!parsed || typeof parsed !== "object")
+    inputError("加解密输入不是 JSON 对象。", {
+      suggestion: '使用 {"text":"内容","key":"口令"} 格式。',
+    });
   const { text, key } = parsed as Record<string, unknown>;
   if (typeof text !== "string" || typeof key !== "string" || !key)
-    throw new Error("text 必须是字符串，key 必须是非空字符串");
+    inputError("text 或 key 字段无效。", {
+      suggestion: "text 必须是字符串，key 必须是非空字符串。",
+    });
   return { text, key };
 }
 
@@ -29,8 +31,9 @@ export async function cipherRun(name: CipherName, decrypt: boolean, value: strin
   try {
     result = algorithms[name].decrypt(text, key).toString(CryptoJS.enc.Utf8);
   } catch {
-    throw new Error("解密失败，请检查密文和口令");
+    inputError("解密失败。", { suggestion: "检查密文、算法和口令是否完全匹配。" });
   }
-  if (!result && text) throw new Error("解密结果为空，请检查密文和口令");
+  if (!result && text)
+    inputError("解密结果为空。", { suggestion: "检查密文、算法和口令是否完全匹配。" });
   return result;
 }

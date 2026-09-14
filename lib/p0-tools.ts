@@ -1,3 +1,5 @@
+import { inputError, parseJson } from "./tool-errors";
+
 export const p0Samples: Record<string, string> = {
   yaml2json: "name: DevKit\nversion: 4\nfeatures:\n  - local\n  - private",
   json2xml: '{"project":{"name":"DevKit","version":4}}',
@@ -16,13 +18,6 @@ export const p0Samples: Record<string, string> = {
   mdtable: "名称,分类,状态\nJSON,格式,已上线\nBase64,编码,已上线",
 };
 
-function json(value: string) {
-  try { return JSON.parse(value); } catch (error) {
-    const message = error instanceof Error ? error.message : "语法无效";
-    throw new Error(`JSON 解析失败：${message}`);
-  }
-}
-
 function validateSchema(schema: Record<string, unknown>, data: unknown, path = "$"): string[] {
   const errors: string[] = [];
   const type = schema.type as string | undefined;
@@ -40,10 +35,10 @@ function validateSchema(schema: Record<string, unknown>, data: unknown, path = "
 
 function splitConfig(value: string) {
   const parts = value.split(/^--- 文本 ---$/m);
-  if (parts.length !== 2) throw new Error("请输入配置，并使用“--- 文本 ---”分隔待处理文本");
-  const config = Object.fromEntries(parts[0].split(/\r?\n/).filter(Boolean).map(line => {
+  if (parts.length !== 2) inputError("缺少“--- 文本 ---”分隔行。", { suggestion: "加入单独一行“--- 文本 ---”。" });
+  const config = Object.fromEntries(parts[0].split(/\r?\n/).map((line, index) => ({ line, index })).filter(({ line }) => line.trim()).map(({ line, index: lineIndex }) => {
     const index = line.indexOf(":");
-    if (index < 0) throw new Error(`配置行格式无效：${line}`);
+    if (index < 0) inputError("配置行格式无效。", { line: lineIndex + 1, column: 1, suggestion: "使用“名称: 值”格式。" });
     return [line.slice(0, index).trim(), line.slice(index + 1).trim()];
   }));
   return { config, text: parts[1].replace(/^\r?\n/, "") };
@@ -56,7 +51,7 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
   }
   if (id === "json2xml") {
     const { XMLBuilder } = await import("fast-xml-parser");
-    return new XMLBuilder({ ignoreAttributes: false, format: true }).build(json(input));
+    return new XMLBuilder({ ignoreAttributes: false, format: true }).build(parseJson(input));
   }
   if (id === "xml2json") {
     const { XMLParser } = await import("fast-xml-parser");
@@ -65,21 +60,24 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
   }
   if (id === "json2csv") {
     const Papa = (await import("papaparse")).default;
-    const data = json(input); if (!Array.isArray(data)) throw new Error("JSON 顶层必须是对象数组");
+    const data = parseJson(input); if (!Array.isArray(data)) inputError("JSON 顶层不是对象数组。", { suggestion: "使用 [{\"name\":\"DevKit\"}] 形式。" });
     return Papa.unparse(data);
   }
   if (id === "csv2json" || id === "csvpreview") {
     const Papa = (await import("papaparse")).default;
     const result = Papa.parse<Record<string, string>>(input, { header: true, skipEmptyLines: true });
     const firstError = result.errors[0];
-    if (firstError) throw new Error(`CSV 第 ${(firstError.row ?? 0) + 1} 行：${firstError.message}`);
+    if (firstError) {
+      const line = (firstError.row ?? 0) + 1;
+      inputError(`CSV 第 ${line} 行格式无效：${firstError.message}`, { line, suggestion: "检查引号、分隔符以及各行列数。" });
+    }
     if (id === "csv2json") return JSON.stringify(result.data, null, 2);
     const headers = result.meta.fields ?? [], rows = id === "csvpreview" ? [...result.data].sort((a, b) => (a[headers[0]] ?? "").localeCompare(b[headers[0]] ?? "", "zh-CN", { numeric: true })) : result.data;
     return [headers.join(" | "), headers.map(() => "---").join(" | "), ...rows.map(row => headers.map(key => row[key] ?? "").join(" | "))].join("\n");
   }
   if (id === "jsonschema") {
-    const value = json(input) as { schema?: Record<string, unknown>; data?: unknown };
-    if (!value.schema || !("data" in value)) throw new Error("请输入包含 schema 和 data 的 JSON 对象");
+    const value = parseJson(input) as { schema?: Record<string, unknown>; data?: unknown };
+    if (!value.schema || !("data" in value)) inputError("缺少 schema 或 data 字段。", { suggestion: "输入包含 schema 和 data 的 JSON 对象。" });
     const errors = validateSchema(value.schema, value.data);
     return errors.length ? `校验未通过（${errors.length} 项）\n${errors.map((x, i) => `${i + 1}. ${x}`).join("\n")}` : "校验通过：数据符合 Schema。";
   }
@@ -106,8 +104,8 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
       return flatten(value).join("\n");
     }
     const root: Record<string, unknown> = {};
-    for (const line of input.split(/\r?\n/).filter(line => line.trim() && !line.trim().startsWith("#"))) {
-      const index = line.indexOf("="); if (index < 0) throw new Error(`Properties 行缺少“=”：${line}`);
+    for (const { line, lineNumber } of input.split(/\r?\n/).map((line, index) => ({ line, lineNumber: index + 1 })).filter(({ line }) => line.trim() && !line.trim().startsWith("#"))) {
+      const index = line.indexOf("="); if (index < 0) inputError("Properties 行缺少等号。", { line: lineNumber, column: line.length + 1, suggestion: "使用 key=value 格式。" });
       const keys = line.slice(0, index).trim().split("."); let target = root;
       keys.forEach((key, i) => { if (i === keys.length - 1) target[key] = line.slice(index + 1).trim(); else target = target[key] = (target[key] as Record<string, unknown>) ?? {}; });
     }
@@ -123,7 +121,7 @@ export async function runP0Tool(id: string, input: string, action = "primary"): 
   }
   if (id === "mdtable") {
     const Papa = (await import("papaparse")).default;
-    const parsed = Papa.parse<string[]>(input, { skipEmptyLines: true }); if (parsed.errors.length || !parsed.data.length) throw new Error("请输入有效 CSV 数据");
+    const parsed = Papa.parse<string[]>(input, { skipEmptyLines: true }); if (parsed.errors.length || !parsed.data.length) inputError("CSV 数据无效。", { line: (parsed.errors[0]?.row ?? 0) + 1, suggestion: "检查表头、引号和分隔符。" });
     const [head, ...rows] = parsed.data; return [`| ${head.join(" | ")} |`, `| ${head.map(() => "---").join(" | ")} |`, ...rows.map(row => `| ${row.join(" | ")} |`)].join("\n");
   }
   if (id === "markdown") {

@@ -201,13 +201,13 @@ npm run release:verify
 ```text
 app/
 ├─ main.tsx       # 静态应用入口
-├─ page.tsx       # DevKit 工具处理与工作区界面
+├─ page.tsx       # DevKit 工作区界面与交互状态
 ├─ globals.css    # 全局样式与明暗主题
 └─ v2.css         # 补充样式
-lib/              # 工具目录、P0 处理逻辑、智能资产与隐私策略
+lib/              # 独立工具执行层、工具目录、结构化错误、智能资产与隐私策略
 desktop/          # FDE 桌面主进程、安全桥接和原子本地存储
 scripts/          # 构建清理脚本
-tests/            # 核心工具、错误边界和隐私测试
+tests/            # 逐工具示例、边界条件、错误定位和隐私测试
 public/           # 静态资源
 .openai/          # Sites 发布配置
 TODO.md           # 后续开发计划
