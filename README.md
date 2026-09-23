@@ -156,7 +156,17 @@ npm run desktop:pack
 
 产物分别命名为 `LingStack-FDE-Setup-<版本>-<架构>.exe` 和
 `LingStack-FDE-Portable-<版本>-<架构>.exe`，避免两种目标互相覆盖。
-公开分发前还应配置 Windows 代码签名证书；本地生成的未签名版本适合内部验证。
+本版本发布未签名的 Windows x64 安装版和便携版；Windows 可能显示未知发布者或 SmartScreen 提示。后续公开分发建议使用带有代码签名用途（Code Signing EKU）和私钥的 Windows 代码签名证书签署安装版与便携版。
+
+可使用 PFX/P12 证书进行离线签名打包。将证书保存在仓库之外，并在当前 PowerShell 会话或 CI 密钥管理中设置 `WIN_CSC_LINK`（证书文件路径、HTTPS 地址或 Base64 内容）和 `WIN_CSC_KEY_PASSWORD`（无密码证书可设置为空值），然后运行：
+
+```powershell
+$env:WIN_CSC_LINK = 'D:\secrets\windows-signing.pfx'
+$env:WIN_CSC_KEY_PASSWORD = '从安全位置读取证书密码'
+npm run desktop:pack:offline:signed
+```
+
+也可使用 electron-builder 的通用变量 `CSC_LINK` 和 `CSC_KEY_PASSWORD`。签名脚本会在构建前检查变量是否配置、证书文件是否存在；检查通过后，electron-builder 会签署 Windows 安装版和便携版。不要将 PFX/P12 或密码提交到仓库。`desktop:pack:offline` 仍用于生成未签名内部验证包。
 
 Windows 安装版更新包可通过 GitHub Releases 发布，需在 PowerShell 中设置 `GH_TOKEN` 后运行 `npm run desktop:publish`。当前仓库尚无公开 Release，发布首个带 `latest.yml` 的安装包后，桌面端更新检查才会发现可用版本；便携版需手动下载新版。macOS 自动更新需要 Apple 代码签名；Linux 使用系统包管理器或新版本安装包更新。Linux 未检测到 GNOME Keyring / KWallet 时会禁用凭据保存，避免落入明文后端。
 

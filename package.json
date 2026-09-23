@@ -19,6 +19,7 @@
     "desktop:dir:offline": "npm run build && electron-builder --dir --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
     "desktop:pack": "npm run build && electron-builder",
     "desktop:pack:offline": "npm run build && electron-builder --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
+    "desktop:pack:offline:signed": "node scripts/require-windows-signing.mjs && npm run build && electron-builder --config.electronDist=node_modules/electron/dist --x64",
     "desktop:publish": "npm run build && electron-builder --publish always",
     "desktop:smoke": "electron . --smoke-test",
     "desktop:skills-smoke": "electron . --skills-smoke-test",
