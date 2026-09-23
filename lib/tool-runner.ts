@@ -455,10 +455,14 @@ export async function runTool(id: string, input: string, action = "primary", opt
     const readingMode = options.pinyinReadingMode ?? "context";
     if (readingMode === "candidates") {
       const entries = pinyin(input, { toneType, type: "all", nonZh: "consecutive" });
-      const conversion = toneType === "num" ? "symbolToNum" : toneType === "none" ? "toneNone" : undefined;
       return entries.map(({ origin, pinyin: selected, polyphonic, isZh }) => {
         if (!isZh) return origin;
-        const readings = [...new Set(conversion ? convert(polyphonic, { format: conversion }) : polyphonic)];
+        const readings = [...new Set(polyphonic.map((reading) => {
+          const hasNumericTone = /[0-5]$/.test(reading);
+          if (toneType === "num") return hasNumericTone ? reading : convert(reading, { format: "symbolToNum" });
+          if (toneType === "none") return hasNumericTone ? reading.slice(0, -1) : convert(reading, { format: "toneNone" });
+          return hasNumericTone ? convert(reading, { format: "numToSymbol" }) : reading;
+        }))];
         return `${origin}：${readings.length > 1 ? readings.join(" / ") : selected}`;
       }).join("\n");
     }

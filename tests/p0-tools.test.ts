@@ -12,6 +12,12 @@ test("converts pinyin with selectable tone and polyphonic readings", async () =>
   assert.match(candidates, /银：yín/);
   assert.match(candidates, /行：.*xíng/);
   assert.match(candidates, /行：.*háng/);
+  const numericCandidates = await runTool("pinyin", "银行", "primary", { pinyinReadingMode: "candidates", pinyinToneType: "num" });
+  assert.match(numericCandidates, /银：yin2/);
+  assert.doesNotMatch(numericCandidates, /yin20|hang20/);
+  const untonedCandidates = await runTool("pinyin", "银行", "primary", { pinyinReadingMode: "candidates", pinyinToneType: "none" });
+  assert.match(untonedCandidates, /行：.*hang.*xing/);
+  assert.equal(await runTool("pinyin", "单于", "primary", { pinyinReadingMode: "surname" }), "shàn yú");
 });
 
 test("converts YAML, XML and CSV formats", async () => {
