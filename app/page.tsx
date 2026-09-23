@@ -7,6 +7,7 @@ import { categories, tools } from "../lib/tool-catalog";
 import type { ToolCapability } from "../lib/tool-catalog";
 import { toolSamples as samples } from "../lib/tool-samples";
 import { runTool as executeTool } from "../lib/tool-runner";
+import type { PinyinReadingMode, PinyinToneType } from "../lib/tool-runner";
 import { formatToolError } from "../lib/tool-errors";
 import type { OpenFilePayload } from "./desktop";
 
@@ -35,6 +36,8 @@ export default function Home({
     [ready, setReady] = useState(false);
   const [passwordLength, setPasswordLength] = useState(16),
     [passwordCount, setPasswordCount] = useState(5),
+    [pinyinToneType, setPinyinToneType] = useState<PinyinToneType>("symbol"),
+    [pinyinReadingMode, setPinyinReadingMode] = useState<PinyinReadingMode>("context"),
     [passwordGroups, setPasswordGroups] = useState({
       numbers: true,
       lower: true,
@@ -149,6 +152,8 @@ export default function Home({
         passwordLength,
         passwordCount,
         passwordGroups,
+        pinyinToneType,
+        pinyinReadingMode,
       });
       setOutput(result);
     } catch (error) {
@@ -210,7 +215,7 @@ export default function Home({
     const timer = setTimeout(() => void runTool(), 350);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, active, autoRun]);
+  }, [input, active, autoRun, pinyinToneType, pinyinReadingMode]);
   useEffect(
     () =>
       window.fdeDesktop?.onClipboardInput((value) => {
@@ -427,6 +432,27 @@ export default function Home({
               {currentCapability.label}
             </span>
           </div>
+          {active === "pinyin" && (
+            <div className="pinyin-config">
+              <label>
+                <span>读音方式</span>
+                <select value={pinyinReadingMode} onChange={(e) => setPinyinReadingMode(e.target.value as PinyinReadingMode)}>
+                  <option value="context">按词语判断</option>
+                  <option value="surname">姓氏读音优先</option>
+                  <option value="candidates">列出多音字候选</option>
+                </select>
+              </label>
+              <label>
+                <span>声调格式</span>
+                <select value={pinyinToneType} onChange={(e) => setPinyinToneType(e.target.value as PinyinToneType)}>
+                  <option value="symbol">声调符号（nǐ hǎo）</option>
+                  <option value="num">数字声调（ni3 hao3）</option>
+                  <option value="none">不标声调（ni hao）</option>
+                </select>
+              </label>
+              <p>“按词语判断”自动选择常见读音；“姓氏读音优先”适合输入人名；候选模式逐字列出多音字读音。</p>
+            </div>
+          )}
           {active === "password" ? (
             <div className="password-workspace">
               <div className="password-config">

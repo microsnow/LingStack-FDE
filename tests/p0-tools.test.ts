@@ -3,6 +3,16 @@ import test from "node:test";
 import { readFile, stat } from "node:fs/promises";
 import { runP0Tool } from "../lib/p0-tools";
 import { nextRecentTools, sensitiveToolIds } from "../lib/tool-policy";
+import { runTool } from "../lib/tool-runner";
+
+test("converts pinyin with selectable tone and polyphonic readings", async () => {
+  assert.equal(await runTool("pinyin", "你好", "primary", { pinyinToneType: "num" }), "ni3 hao3");
+  assert.equal(await runTool("pinyin", "你好", "primary", { pinyinToneType: "none" }), "ni hao");
+  const candidates = await runTool("pinyin", "银行", "primary", { pinyinReadingMode: "candidates" });
+  assert.match(candidates, /银：yín/);
+  assert.match(candidates, /行：.*xíng/);
+  assert.match(candidates, /行：.*háng/);
+});
 
 test("converts YAML, XML and CSV formats", async () => {
   assert.deepEqual(JSON.parse((await runP0Tool("yaml2json", "name: DevKit\nversion: 4"))!), { name: "DevKit", version: 4 });

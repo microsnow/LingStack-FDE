@@ -4,10 +4,14 @@ import { runP0Tool } from "./p0-tools";
 import { inputError, parseJson } from "./tool-errors";
 
 export type PasswordGroupName = "numbers" | "lower" | "upper" | "symbols";
+export type PinyinToneType = "symbol" | "num" | "none";
+export type PinyinReadingMode = "context" | "surname" | "candidates";
 export type ToolRunOptions = {
   passwordLength?: number;
   passwordCount?: number;
   passwordGroups?: Record<PasswordGroupName, boolean>;
+  pinyinToneType?: PinyinToneType;
+  pinyinReadingMode?: PinyinReadingMode;
 };
 
 const defaultPasswordGroups: Record<PasswordGroupName, boolean> = {
@@ -446,8 +450,24 @@ export async function runTool(id: string, input: string, action = "primary", opt
   }
   if (id === "rmb") return rmbUppercase(input);
   if (id === "pinyin") {
-    const { pinyin } = await import("pinyin-pro");
-    return pinyin(input, { toneType: "symbol", type: "string", nonZh: "consecutive" });
+    const { convert, pinyin } = await import("pinyin-pro");
+    const toneType = options.pinyinToneType ?? "symbol";
+    const readingMode = options.pinyinReadingMode ?? "context";
+    if (readingMode === "candidates") {
+      const entries = pinyin(input, { toneType, type: "all", nonZh: "consecutive" });
+      const conversion = toneType === "num" ? "symbolToNum" : toneType === "none" ? "toneNone" : undefined;
+      return entries.map(({ origin, pinyin: selected, polyphonic, isZh }) => {
+        if (!isZh) return origin;
+        const readings = [...new Set(conversion ? convert(polyphonic, { format: conversion }) : polyphonic)];
+        return `${origin}：${readings.length > 1 ? readings.join(" / ") : selected}`;
+      }).join("\n");
+    }
+    return pinyin(input, {
+      toneType,
+      type: "string",
+      nonZh: "consecutive",
+      ...(readingMode === "surname" ? { mode: "surname" as const, surname: "head" as const } : {}),
+    });
   }
   if (id === "hash") {
     const algorithm = action === "sha1" ? "SHA-1" : action === "sha512" ? "SHA-512" : "SHA-256";

@@ -181,7 +181,7 @@ const toolDefinitions: ToolDefinition[] = [
   {
     id: "pinyin",
     name: "汉字转拼音",
-    desc: "汉字转换为带声调的拼音",
+    desc: "汉字转拼音，支持声调格式和多音字候选",
     icon: "拼",
     color: "blue",
     category: "编码转换",
