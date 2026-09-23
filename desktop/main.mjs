@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, Tray, clipboard, dialog, globalShortcut, ipcMain, nativeImage, protocol, shell } from "electron";
-import { autoUpdater } from "electron-updater";
+import updater from "electron-updater";
 import { readFile, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { loadSmartAssets, saveSmartAssets } from "./asset-store.mjs";
@@ -15,6 +15,7 @@ const SKILLS_SMOKE_TEST = process.argv.includes("--skills-smoke-test");
 const SMOKE_TEST = BASIC_SMOKE_TEST || SKILLS_SMOKE_TEST;
 const APP_PROTOCOL = "fde-app";
 const PLATFORM = getPlatformAdapter(process.platform);
+const { autoUpdater } = updater;
 const MAX_OPEN_FILE_BYTES = 5 * 1024 * 1024;
 const OPEN_FILE_EXTENSIONS = [".txt", ".json", ".md", ".csv", ".xml", ".yaml", ".yml", ".html", ".css", ".js", ".properties"];
 const MIME_TYPES = {
