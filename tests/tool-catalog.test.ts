@@ -6,8 +6,8 @@ import { categories, tools } from "../lib/tool-catalog";
 import { toolSamples } from "../lib/tool-samples";
 import { cipherRun, type CipherName } from "../lib/cipher-tools";
 
-test("registers 74 uniquely identified tools with valid categories", () => {
-  assert.equal(tools.length, 74);
+test("registers 78 uniquely identified tools with valid categories", () => {
+  assert.equal(tools.length, 78);
   assert.equal(new Set(tools.map((tool) => tool.id)).size, tools.length);
   const availableCategories = new Set(categories);
   for (const tool of tools) {

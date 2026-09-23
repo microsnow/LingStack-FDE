@@ -8,6 +8,7 @@ import type { ToolCapability } from "../lib/tool-catalog";
 import { toolSamples as samples } from "../lib/tool-samples";
 import { runTool as executeTool } from "../lib/tool-runner";
 import { formatToolError } from "../lib/tool-errors";
+import type { OpenFilePayload } from "./desktop";
 
 const capabilityPresentation: Record<ToolCapability, { label: string; detail: string }> = {
   local: { label: "● 本地安全处理", detail: "输入与结果只在本机处理。" },
@@ -19,7 +20,8 @@ const icons = ["◈", "★", "◷", "⇄", "✓", "T", "⌯", "∿", "◇", "⎔
 
 export default function Home({
   onNavigate,
-}: { onNavigate?: (module: FdeModule) => void } = {}) {
+  initialFile,
+}: { onNavigate?: (module: FdeModule) => void; initialFile?: (OpenFilePayload & { requestId: number }) | null } = {}) {
   const [active, setActive] = useState("json"),
     [category, setCategory] = useState("全部工具"),
     [query, setQuery] = useState(""),
@@ -111,6 +113,28 @@ export default function Home({
       localStorage.setItem("devkit-recent", JSON.stringify(next));
     }
   }
+  useEffect(() => {
+    if (!initialFile) return;
+    queueMicrotask(() => {
+      if (initialFile.error) {
+        setError(initialFile.error);
+        setOutput("");
+        return;
+      }
+      const extension = initialFile.name?.split(".").at(-1)?.toLowerCase();
+      const suggestedTool: Record<string, string> = {
+        json: "json", md: "markdown", csv: "csvpreview", xml: "xmlformat", yaml: "yamlformat", yml: "yamlformat",
+      };
+      const toolId = extension ? suggestedTool[extension] : undefined;
+      if (toolId && tools.some((tool) => tool.id === toolId)) {
+        setActive(toolId);
+        setTabs((current) => current.includes(toolId) ? current : [...current, toolId].slice(-6));
+      }
+      setInput(initialFile.text ?? "");
+      setOutput("");
+      setError("");
+    });
+  }, [initialFile]);
   function toggleFavorite(id: string) {
     const next = favorites.includes(id)
       ? favorites.filter((x) => x !== id)

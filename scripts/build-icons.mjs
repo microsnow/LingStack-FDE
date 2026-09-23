@@ -22,4 +22,18 @@ images.forEach((image, index) => {
   offset += image.length;
 });
 await writeFile(join(buildDirectory, "icon.ico"), Buffer.concat([header, ...images]));
+const macIconSpecs = [[16, "icp4"], [32, "icp5"], [64, "icp6"], [128, "ic07"], [256, "ic08"], [512, "ic09"]];
+const macIcons = await Promise.all(macIconSpecs.map(async ([size, type]) => {
+  const png = await sharp(svg, { density: 512 }).resize(size, size).png().toBuffer();
+  const chunk = Buffer.alloc(8 + png.length);
+  chunk.write(type, 0, 4, "ascii");
+  chunk.writeUInt32BE(chunk.length, 4);
+  png.copy(chunk, 8);
+  return chunk;
+}));
+const icnsBody = Buffer.concat(macIcons);
+const icnsHeader = Buffer.alloc(8);
+icnsHeader.write("icns", 0, 4, "ascii");
+icnsHeader.writeUInt32BE(icnsHeader.length + icnsBody.length, 4);
+await writeFile(join(buildDirectory, "icon.icns"), Buffer.concat([icnsHeader, icnsBody]));
 console.log(`Built 灵栈 FDE icons: ${sizes.join(", ")} px`);

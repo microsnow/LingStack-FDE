@@ -8,4 +8,13 @@
 .settings-card button { border: 0; border-radius: 10px; padding: 11px 16px; color: #03131a; background: var(--accent); cursor: pointer; font-weight: 700; }
 .settings-card button:disabled { cursor: wait; opacity: .55; }
 .settings-message { padding: 13px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); }
+.credential-card label { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; color: var(--muted); font-size: 12px; }
+.credential-card input { min-height: 40px; border: 1px solid var(--line); border-radius: 9px; padding: 0 11px; color: var(--text); background: var(--bg); }
+.credential-list { margin: 18px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.credential-list li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.credential-list li span { display: flex; flex: 1; flex-direction: column; gap: 4px; }
+.credential-list li b { color: var(--text); font-size: 12px; }
+.credential-list li small { color: var(--muted); font-size: 10px; }
+.settings-card button.credential-remove { padding: 7px 10px; border: 1px solid var(--line); color: #ff8989; background: transparent; font-size: 11px; }
+.settings-inline-message { min-height: 0 !important; margin: 12px 0 0; font-size: 12px; }
 @media (max-width: 720px) { .settings-grid { grid-template-columns: 1fr; } .settings-shell { padding: 42px 18px; } }

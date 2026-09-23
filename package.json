@@ -19,6 +19,7 @@
     "desktop:dir:offline": "npm run build && electron-builder --dir --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
     "desktop:pack": "npm run build && electron-builder",
     "desktop:pack:offline": "npm run build && electron-builder --config.electronDist=node_modules/electron/dist --config.win.signExecutable=false",
+    "desktop:publish": "npm run build && electron-builder --publish always",
     "desktop:smoke": "electron . --smoke-test",
     "desktop:skills-smoke": "electron . --skills-smoke-test",
     "release:verify": "node scripts/verify-release.mjs",
@@ -32,6 +33,7 @@
     "cronstrue": "^3.24.0",
     "crypto-js": "^4.2.0",
     "drizzle-orm": "0.45.2",
+    "electron-updater": "^6.8.9",
     "fast-xml-parser": "^5.10.1",
     "marked": "^18.0.7",
     "next": "16.3.4",
@@ -71,6 +73,20 @@
   "build": {
     "appId": "dev.fde.workbench",
     "productName": "灵栈 FDE",
+    "publish": {
+      "provider": "github",
+      "owner": "microsnow",
+      "repo": "lingzhan-fde",
+      "releaseType": "release"
+    },
+    "fileAssociations": [
+      { "ext": ["txt", "md", "properties"], "name": "lingstack-fde-text", "description": "使用灵栈 FDE 打开文本文件", "role": "Editor" },
+      { "ext": "json", "name": "lingstack-fde-json", "description": "使用灵栈 FDE 打开 JSON 文件", "mimeType": "application/json", "role": "Editor" },
+      { "ext": "csv", "name": "lingstack-fde-csv", "description": "使用灵栈 FDE 打开 CSV 文件", "mimeType": "text/csv", "role": "Editor" },
+      { "ext": "xml", "name": "lingstack-fde-xml", "description": "使用灵栈 FDE 打开 XML 文件", "mimeType": "application/xml", "role": "Editor" },
+      { "ext": ["yaml", "yml"], "name": "lingstack-fde-yaml", "description": "使用灵栈 FDE 打开 YAML 文件", "mimeType": "application/yaml", "role": "Editor" },
+      { "ext": ["html", "css", "js"], "name": "lingstack-fde-web", "description": "使用灵栈 FDE 打开 Web 文件", "mimeType": "text/plain", "role": "Editor" }
+    ],
     "files": [
       "dist/**/*",
       "desktop/**/*",
@@ -93,7 +109,19 @@
         "portable"
       ]
     },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg", "zip"]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Development",
+      "target": ["AppImage", "deb"],
+      "mimeTypes": ["text/plain", "text/markdown", "text/csv", "application/json", "application/xml", "application/yaml"]
+    },
     "nsis": {
+      "perMachine": true,
       "artifactName": "LingStack-FDE-Setup-${version}-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

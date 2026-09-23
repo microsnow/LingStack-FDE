@@ -62,7 +62,7 @@ test("does not add sensitive tools to recent history", () => {
 test("fresh static production build contains the product and current tool count", async () => {
   const html = await readFile(new URL("../dist/index.html", import.meta.url), "utf8");
   assert.match(html, /灵栈 FDE · 开发者工作台/);
-  assert.match(html, /内置 74 个开发工具/);
+  assert.match(html, /内置 78 个开发工具/);
   assert.doesNotMatch(html, /Your site is taking shape|Codex is working/);
   await assert.rejects(readFile(new URL("../dist/server/index.js", import.meta.url)), error => (error as NodeJS.ErrnoException).code === "ENOENT");
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");

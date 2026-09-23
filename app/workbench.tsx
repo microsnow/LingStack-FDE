@@ -1,7 +1,8 @@
 "use client";
 
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { FdeNavigation, type FdeModule } from "./fde-navigation";
+import type { OpenFilePayload } from "./desktop";
 
 const AssetCenter = lazy(() => import("./asset-center"));
 const Home = lazy(() => import("./page"));
@@ -61,7 +62,7 @@ function Placeholder({
           <div className="fde-home-grid">
             <article>
               <b>DevKit 工具中心</b>
-              <span>74 个本地开发工具</span>
+              <span>78 个本地开发工具</span>
               <button onClick={() => onNavigate("devkit")}>打开</button>
             </article>
             <article>
@@ -87,6 +88,7 @@ function Placeholder({
 }
 
 export default function Workbench() {
+  const [openedFile, setOpenedFile] = useState<(OpenFilePayload & { requestId: number }) | null>(null);
   const [module, setModule] = useState<FdeModule>(() => {
     const saved = localStorage.getItem(MODULE_KEY) as FdeModule | null;
     return [
@@ -100,12 +102,17 @@ export default function Workbench() {
       ? saved!
       : "home";
   });
-  function navigate(next: FdeModule) {
+  const navigate = useCallback((next: FdeModule) => {
     setModule(next);
+    if (next !== "devkit") setOpenedFile(null);
     localStorage.setItem(MODULE_KEY, next);
     window.scrollTo(0, 0);
-  }
-  if (module === "devkit") return <Suspense fallback={<ModuleLoading />}><Home onNavigate={navigate} /></Suspense>;
+  }, []);
+  useEffect(() => window.fdeDesktop?.onOpenFile((file) => {
+    setOpenedFile({ ...file, requestId: Date.now() });
+    navigate("devkit");
+  }), [navigate]);
+  if (module === "devkit") return <Suspense fallback={<ModuleLoading />}><Home onNavigate={navigate} initialFile={openedFile} /></Suspense>;
   if (module === "prompts") return <Suspense fallback={<ModuleLoading />}><AssetCenter key={module} kind="prompt" onNavigate={navigate} /></Suspense>;
   if (module === "media") return <Suspense fallback={<ModuleLoading />}><AssetCenter key={module} kind="media-prompt" onNavigate={navigate} /></Suspense>;
   if (module === "skills") return <Suspense fallback={<ModuleLoading />}><SkillsCenter onNavigate={navigate} /></Suspense>;

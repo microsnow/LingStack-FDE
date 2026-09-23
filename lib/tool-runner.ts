@@ -231,6 +231,58 @@ function parseDateValue(raw: string) {
   return date;
 }
 
+function parseIso8601(raw: string) {
+  const value = raw.trim();
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2})?)?$/);
+  if (!match)
+    inputError("ISO 8601 日期时间格式无效。", { suggestion: "使用 YYYY-MM-DD 或 YYYY-MM-DDTHH:mm:ssZ 格式；无时区时按本地时间解析。" });
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, , zone] = match;
+  const year = Number(yearText), month = Number(monthText), day = Number(dayText);
+  const hour = Number(hourText ?? 0), minute = Number(minuteText ?? 0), second = Number(secondText ?? 0);
+  const calendar = new Date(0);
+  calendar.setUTCFullYear(year, month - 1, day);
+  calendar.setUTCHours(hour, minute, second, 0);
+  if (month < 1 || month > 12 || day < 1 || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day || hour > 23 || minute > 59 || second > 59)
+    inputError("ISO 8601 日期时间包含不存在的日期或时间。", { suggestion: "检查月份天数，以及小时 0–23、分钟和秒 0–59 的范围。" });
+  if (zone && zone !== "Z") {
+    const [offsetHour, offsetMinute] = zone.slice(1).split(":").map(Number);
+    if (offsetHour > 23 || offsetMinute > 59)
+      inputError("ISO 8601 时区偏移无效。", { suggestion: "时区偏移使用 ±HH:mm 格式，例如 +08:00。" });
+  }
+  return parseDateValue(value);
+}
+
+type SemVer = { raw: string; major: bigint; minor: bigint; patch: bigint; prerelease: string[] };
+
+function parseSemVer(raw: string, line: number): SemVer {
+  const match = raw.match(/^[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/);
+  if (!match)
+    inputError("SemVer 版本格式无效。", { line, suggestion: "使用 MAJOR.MINOR.PATCH 格式，例如 2.1.0-beta.1+build.5；核心数字不能包含前导零。" });
+  const prerelease = match[4]?.split(".") ?? [];
+  if (prerelease.some((part) => /^\d+$/.test(part) && part.length > 1 && part.startsWith("0")))
+    inputError("SemVer 数字型预发布标识不能有前导零。", { line, suggestion: "将预发布标识中的数字改为规范格式，例如 beta.1。" });
+  return { raw, major: BigInt(match[1]), minor: BigInt(match[2]), patch: BigInt(match[3]), prerelease };
+}
+
+function compareSemVer(first: SemVer, second: SemVer) {
+  for (const key of ["major", "minor", "patch"] as const) {
+    if (first[key] !== second[key]) return first[key] > second[key] ? 1 : -1;
+  }
+  if (!first.prerelease.length || !second.prerelease.length)
+    return first.prerelease.length === second.prerelease.length ? 0 : first.prerelease.length ? -1 : 1;
+  const length = Math.max(first.prerelease.length, second.prerelease.length);
+  for (let index = 0; index < length; index++) {
+    const a = first.prerelease[index], b = second.prerelease[index];
+    if (a === undefined || b === undefined) return a === undefined ? -1 : 1;
+    if (a === b) continue;
+    const aNumeric = /^\d+$/.test(a), bNumeric = /^\d+$/.test(b);
+    if (aNumeric && bNumeric) return a.length !== b.length ? a.length > b.length ? 1 : -1 : a > b ? 1 : -1;
+    if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
+    return a > b ? 1 : -1;
+  }
+  return 0;
+}
+
 function dateDetails(date: Date) {
   return `日期：${formatLocalDate(date)}\n本地时间：${formatLocalDateTime(date)}\nISO 8601：${date.toISOString()}\n时间戳秒：${Math.floor(date.getTime() / 1000)}\n时间戳毫秒：${date.getTime()}`;
 }
@@ -242,6 +294,30 @@ function decodeEntities(value: string) {
     const number = code[1].toLowerCase() === "x" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
     return Number.isFinite(number) && number <= 0x10ffff ? String.fromCodePoint(number) : entity;
   });
+}
+
+const fileSizeUnits: Record<string, number> = {
+  B: 1,
+  KB: 1e3,
+  MB: 1e6,
+  GB: 1e9,
+  TB: 1e12,
+  PB: 1e15,
+  KIB: 1024,
+  MIB: 1024 ** 2,
+  GIB: 1024 ** 3,
+  TIB: 1024 ** 4,
+  PIB: 1024 ** 5,
+};
+
+function formatFileSize(bytes: number, base: 1000 | 1024, units: string[]) {
+  let value = bytes;
+  let unit = 0;
+  while (value >= base && unit < units.length - 1) {
+    value /= base;
+    unit++;
+  }
+  return `${Number(value.toPrecision(6))} ${units[unit]}`;
 }
 
 export async function runTool(id: string, input: string, action = "primary", options: ToolRunOptions = {}): Promise<string> {
@@ -282,11 +358,68 @@ export async function runTool(id: string, input: string, action = "primary", opt
     const direction = difference === 0 ? "两个时间相同" : difference > 0 ? "第二个时间晚于第一个时间" : "第二个时间早于第一个时间";
     return `开始：${formatLocalDateTime(start)}\n结束：${formatLocalDateTime(end)}\n方向：${direction}\n\n相差毫秒数：${absolute}\n相差秒数：${absolute / 1000}\n相差小时数：${absolute / 3600000}\n相差天数：${absolute / 86400000}`;
   }
+  if (id === "timeunits") {
+    const secondsPerUnit: Record<string, number> = {
+      ms: 0.001, msec: 0.001, millisecond: 0.001, milliseconds: 0.001,
+      s: 1, sec: 1, second: 1, seconds: 1,
+      min: 60, minute: 60, minutes: 60,
+      h: 3600, hr: 3600, hour: 3600, hours: 3600,
+      d: 86400, day: 86400, days: 86400,
+      w: 604800, wk: 604800, week: 604800, weeks: 604800,
+    };
+    const values = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (!values.length)
+      inputError("没有可转换的时间。", { suggestion: "每行输入一个时长，例如 90 min；省略单位时按秒处理。" });
+    return values.map((value, index) => {
+      const match = value.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(ms|msec|milliseconds?|s|sec|seconds?|min|minutes?|h|hr|hours?|d|days?|w|wk|weeks?)?$/i);
+      if (!match)
+        inputError("时间格式无效。", { line: index + 1, suggestion: "输入数值及 ms、s、min、h、d 或 wk 单位；省略单位时按秒处理。" });
+      const amount = Number(match[1]);
+      const unit = (match[2] ?? "s").toLowerCase();
+      const seconds = amount * (secondsPerUnit[unit] ?? Number.NaN);
+      if (!Number.isFinite(seconds) || !Number.isFinite(seconds * 1000))
+        inputError("时间超出可计算范围。", { line: index + 1, suggestion: "检查单位或减小数值后重试。" });
+      const format = (number: number) => Number(number.toPrecision(8));
+      return `# ${index + 1} · ${value}\n毫秒：${format(seconds * 1000)} ms\n秒：${format(seconds)} s\n分钟：${format(seconds / 60)} min\n小时：${format(seconds / 3600)} h\n天：${format(seconds / 86400)} d\n周：${format(seconds / 604800)} wk`;
+    }).join("\n\n");
+  }
+  if (id === "iso8601") {
+    const values = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (!values.length)
+      inputError("没有可解析的日期时间。", { suggestion: "每行输入一个 ISO 8601 日期或日期时间。" });
+    return values.map((value, index) => `# ${index + 1} · ${value}\n${dateDetails(parseIso8601(value))}`).join("\n\n");
+  }
+  if (id === "semver") {
+    const values = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (values.length !== 2)
+      inputError("版本比较需要两个 SemVer 版本。", { suggestion: "每行输入一个版本，例如 1.2.0-beta.1 和 1.2.0。" });
+    const first = parseSemVer(values[0], 1), second = parseSemVer(values[1], 2);
+    const comparison = compareSemVer(first, second);
+    const relation = comparison === 0 ? "与 B 优先级相同" : comparison > 0 ? "高于 B" : "低于 B";
+    const order = comparison === 0 ? `${first.raw} ≡ ${second.raw}` : comparison > 0 ? `${second.raw} < ${first.raw}` : `${first.raw} < ${second.raw}`;
+    return `版本 A：${first.raw}\n版本 B：${second.raw}\n比较结果：A ${relation}\n优先级顺序：${order}\n说明：构建元数据（+ 后内容）不影响版本优先级。`;
+  }
   if (id === "dateconvert") {
     const values = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
     if (!values.length)
       inputError("没有可转换的日期。", { suggestion: "至少输入一个日期或时间戳。" });
     return values.map((value, index) => `# ${index + 1} · ${value}\n${dateDetails(parseDateValue(value))}`).join("\n\n");
+  }
+  if (id === "filesize") {
+    const values = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (!values.length)
+      inputError("没有可转换的文件大小。", { suggestion: "每行输入一个数值和单位，例如 1.5 GB；省略单位时按 B 处理。" });
+    return values.map((value, index) => {
+      const match = value.match(/^(\d+(?:\.\d+)?|\.\d+)\s*(B|KB|MB|GB|TB|PB|KiB|MiB|GiB|TiB|PiB)?$/i);
+      if (!match)
+        inputError("文件大小格式无效。", { line: index + 1, suggestion: "输入非负数值及 B、KB、MB、GB、TB、PB 或 KiB、MiB、GiB、TiB、PiB 单位。" });
+      const amount = Number(match[1]);
+      const unit = (match[2] ?? "B").toUpperCase();
+      const bytes = amount * fileSizeUnits[unit];
+      if (!Number.isFinite(bytes))
+        inputError("文件大小超出可计算范围。", { line: index + 1, suggestion: "减小数值后重试。" });
+      return `# ${index + 1} · ${value}\n字节数：${Number(bytes.toPrecision(15))} B\n十进制：${formatFileSize(bytes, 1000, ["B", "KB", "MB", "GB", "TB", "PB"])}\n二进制：${formatFileSize(bytes, 1024, ["B", "KiB", "MiB", "GiB", "TiB", "PiB"])}`;
+    }).join("\n\n");
   }
   if (id === "radix") {
     const number = input.trim().startsWith("0x") ? parseInt(input, 16) : Number(input);
