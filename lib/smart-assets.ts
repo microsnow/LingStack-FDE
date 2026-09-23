@@ -1,10 +1,60 @@
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+
 export type AssetKind = "prompt" | "media-prompt";
 export type AssetScope = "global" | "project";
 export type MediaKind = "image" | "video" | "audio" | "tts";
+export type MediaTemplate =
+  | "text-to-image"
+  | "image-to-image"
+  | "image-edit"
+  | "style-transfer"
+  | "text-to-video"
+  | "first-last-frame-video"
+  | "music"
+  | "sound-effect"
+  | "tts";
 
 export type PromptVariable = {
   name: string;
   value: string;
+  type?:
+    | "text"
+    | "number"
+    | "select"
+    | "multiselect"
+    | "file"
+    | "image"
+    | "project-file";
+  options?: string[];
+  required?: boolean;
+};
+
+export type AssetAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  dataUrl?: string;
+  path?: string;
+};
+export type AssetRun = {
+  id: string;
+  createdAt: string;
+  input: Record<string, string>;
+  output: string;
+  model: string;
+  durationMs: number;
+  tokens?: number;
+  sensitive?: boolean;
+  parameters?: Record<string, string>;
+  seed?: string;
+  attachmentIds?: string[];
+  assetVersion?: number;
+};
+export type AssetRevision = {
+  version: number;
+  createdAt: string;
+  note: string;
+  snapshot: Omit<SmartAsset, "revisions" | "runs">;
 };
 
 export type SmartAsset = {
@@ -18,15 +68,49 @@ export type SmartAsset = {
   scope: AssetScope;
   favorite: boolean;
   archived: boolean;
+  pinned?: boolean;
+  folder?: string;
+  sourcePath?: string;
+  derivedFrom?: { assetId: string; runId: string };
+  author?: string;
+  origin?: string;
+  useCase?: string;
+  examples?: { input: string; output: string }[];
+  recommendedModel?: string;
+  modelParameters?: string;
+  runNotes?: string;
+  permissions?: { fileAccess: boolean; network: boolean; ai: boolean };
+  attachments?: AssetAttachment[];
+  runs?: AssetRun[];
+  revisions?: AssetRevision[];
   version: number;
   systemPrompt: string;
   userPrompt: string;
   variables: PromptVariable[];
   media?: {
     kind: MediaKind;
+    template?: MediaTemplate;
     model: string;
     aspectRatio: string;
     negativePrompt: string;
+    seed?: string;
+    quality?: string;
+    duration?: string;
+    pace?: string;
+    cameraMotion?: string;
+    sceneChanges?: string;
+    dialogue?: string;
+    soundEffects?: string;
+    style?: string;
+    structured?: Record<string, string>;
+    modelVariants?: { model: string; prompt: string; parameters: string }[];
+    shots?: {
+      id: string;
+      name: string;
+      prompt: string;
+      duration: string;
+      attachmentIds: string[];
+    }[];
   };
   createdAt: string;
   updatedAt: string;
@@ -46,23 +130,45 @@ const VARIABLE_PATTERN = /\{\{\s*([\w\u4e00-\u9fff.-]+)\s*\}\}/g;
 export function extractTemplateVariables(...templates: string[]): string[] {
   const names = new Set<string>();
   for (const template of templates) {
-    for (const match of template.matchAll(VARIABLE_PATTERN)) names.add(match[1]);
+    for (const match of template.matchAll(VARIABLE_PATTERN))
+      names.add(match[1]);
   }
   return [...names];
 }
 
 export function syncAssetVariables(asset: SmartAsset): SmartAsset {
-  const current = new Map(asset.variables.map(variable => [variable.name, variable.value]));
-  const names = extractTemplateVariables(asset.systemPrompt, asset.userPrompt, asset.media?.negativePrompt ?? "");
-  return { ...asset, variables: names.map(name => ({ name, value: current.get(name) ?? "" })) };
+  const current = new Map(
+    asset.variables.map((variable) => [variable.name, variable.value]),
+  );
+  const names = extractTemplateVariables(
+    asset.systemPrompt,
+    asset.userPrompt,
+    asset.media?.negativePrompt ?? "",
+  );
+  return {
+    ...asset,
+    variables: names.map((name) => ({ name, value: current.get(name) ?? "" })),
+  };
 }
 
-export function renderTemplate(template: string, values: Record<string, string>): string {
-  return template.replace(VARIABLE_PATTERN, (_token, name: string) => values[name] ?? `{{${name}}}`);
+export function renderTemplate(
+  template: string,
+  values: Record<string, string>,
+): string {
+  return template.replace(
+    VARIABLE_PATTERN,
+    (_token, name: string) => values[name] ?? `{{${name}}}`,
+  );
 }
 
-export function renderAsset(asset: SmartAsset): { systemPrompt: string; userPrompt: string; negativePrompt: string } {
-  const values = Object.fromEntries(asset.variables.map(variable => [variable.name, variable.value]));
+export function renderAsset(asset: SmartAsset): {
+  systemPrompt: string;
+  userPrompt: string;
+  negativePrompt: string;
+} {
+  const values = Object.fromEntries(
+    asset.variables.map((variable) => [variable.name, variable.value]),
+  );
   return {
     systemPrompt: renderTemplate(asset.systemPrompt, values),
     userPrompt: renderTemplate(asset.userPrompt, values),
@@ -70,8 +176,21 @@ export function renderAsset(asset: SmartAsset): { systemPrompt: string; userProm
   };
 }
 
-export function createAsset(kind: AssetKind, now = new Date().toISOString(), id = crypto.randomUUID()): SmartAsset {
-  const media = kind === "media-prompt" ? { kind: "image" as const, model: "通用", aspectRatio: "1:1", negativePrompt: "" } : undefined;
+export function createAsset(
+  kind: AssetKind,
+  now = new Date().toISOString(),
+  id = crypto.randomUUID(),
+): SmartAsset {
+  const media =
+    kind === "media-prompt"
+      ? {
+          kind: "image" as const,
+          template: "text-to-image" as const,
+          model: "通用",
+          aspectRatio: "1:1",
+          negativePrompt: "",
+        }
+      : undefined;
   return {
     id,
     kind,
@@ -83,6 +202,19 @@ export function createAsset(kind: AssetKind, now = new Date().toISOString(), id 
     scope: "global",
     favorite: false,
     archived: false,
+    pinned: false,
+    folder: "",
+    author: "",
+    origin: "",
+    useCase: "",
+    examples: [],
+    recommendedModel: "",
+    modelParameters: "",
+    runNotes: "",
+    permissions: { fileAccess: false, network: false, ai: false },
+    attachments: [],
+    runs: [],
+    revisions: [],
     version: 1,
     systemPrompt: "",
     userPrompt: "",
@@ -97,7 +229,8 @@ export function normalizeAsset(value: unknown): SmartAsset | null {
   if (!value || typeof value !== "object") return null;
   const asset = value as Partial<SmartAsset>;
   if (asset.kind !== "prompt" && asset.kind !== "media-prompt") return null;
-  if (typeof asset.id !== "string" || typeof asset.name !== "string") return null;
+  if (typeof asset.id !== "string" || typeof asset.name !== "string")
+    return null;
   const now = new Date().toISOString();
   return syncAssetVariables({
     id: asset.id,
@@ -105,53 +238,248 @@ export function normalizeAsset(value: unknown): SmartAsset | null {
     name: asset.name,
     description: typeof asset.description === "string" ? asset.description : "",
     category: typeof asset.category === "string" ? asset.category : "未分类",
-    tags: Array.isArray(asset.tags) ? asset.tags.filter((tag): tag is string => typeof tag === "string") : [],
+    tags: Array.isArray(asset.tags)
+      ? asset.tags.filter((tag): tag is string => typeof tag === "string")
+      : [],
     source: asset.source === "imported" ? "imported" : "local",
     scope: asset.scope === "project" ? "project" : "global",
     favorite: Boolean(asset.favorite),
     archived: Boolean(asset.archived),
-    version: typeof asset.version === "number" && asset.version > 0 ? asset.version : 1,
-    systemPrompt: typeof asset.systemPrompt === "string" ? asset.systemPrompt : "",
+    version:
+      typeof asset.version === "number" && asset.version > 0
+        ? asset.version
+        : 1,
+    systemPrompt:
+      typeof asset.systemPrompt === "string" ? asset.systemPrompt : "",
     userPrompt: typeof asset.userPrompt === "string" ? asset.userPrompt : "",
     variables: Array.isArray(asset.variables)
-      ? asset.variables.filter((item): item is PromptVariable => Boolean(item) && typeof item.name === "string" && typeof item.value === "string")
+      ? asset.variables.filter(
+          (item): item is PromptVariable =>
+            Boolean(item) &&
+            typeof item.name === "string" &&
+            typeof item.value === "string",
+        )
       : [],
-    media: asset.kind === "media-prompt" ? {
-      kind: ["image", "video", "audio", "tts"].includes(asset.media?.kind ?? "") ? asset.media!.kind : "image",
-      model: typeof asset.media?.model === "string" ? asset.media.model : "通用",
-      aspectRatio: typeof asset.media?.aspectRatio === "string" ? asset.media.aspectRatio : "1:1",
-      negativePrompt: typeof asset.media?.negativePrompt === "string" ? asset.media.negativePrompt : "",
-    } : undefined,
+    media:
+      asset.kind === "media-prompt"
+        ? {
+            kind: ["image", "video", "audio", "tts"].includes(
+              asset.media?.kind ?? "",
+            )
+              ? asset.media!.kind
+              : "image",
+            template: [
+              "text-to-image",
+              "image-to-image",
+              "image-edit",
+              "style-transfer",
+              "text-to-video",
+              "first-last-frame-video",
+              "music",
+              "sound-effect",
+              "tts",
+            ].includes(asset.media?.template ?? "")
+              ? asset.media!.template
+              : "text-to-image",
+            model:
+              typeof asset.media?.model === "string"
+                ? asset.media.model
+                : "通用",
+            aspectRatio:
+              typeof asset.media?.aspectRatio === "string"
+                ? asset.media.aspectRatio
+                : "1:1",
+            negativePrompt:
+              typeof asset.media?.negativePrompt === "string"
+                ? asset.media.negativePrompt
+                : "",
+            seed: typeof asset.media?.seed === "string" ? asset.media.seed : "",
+            quality:
+              typeof asset.media?.quality === "string"
+                ? asset.media.quality
+                : "",
+            duration:
+              typeof asset.media?.duration === "string"
+                ? asset.media.duration
+                : "",
+            pace: typeof asset.media?.pace === "string" ? asset.media.pace : "",
+            cameraMotion:
+              typeof asset.media?.cameraMotion === "string"
+                ? asset.media.cameraMotion
+                : "",
+            sceneChanges:
+              typeof asset.media?.sceneChanges === "string"
+                ? asset.media.sceneChanges
+                : "",
+            dialogue:
+              typeof asset.media?.dialogue === "string"
+                ? asset.media.dialogue
+                : "",
+            soundEffects:
+              typeof asset.media?.soundEffects === "string"
+                ? asset.media.soundEffects
+                : "",
+            style:
+              typeof asset.media?.style === "string" ? asset.media.style : "",
+            structured:
+              asset.media?.structured &&
+              typeof asset.media.structured === "object"
+                ? asset.media.structured
+                : {},
+            modelVariants: Array.isArray(asset.media?.modelVariants)
+              ? asset.media.modelVariants
+              : [],
+            shots: Array.isArray(asset.media?.shots) ? asset.media.shots : [],
+          }
+        : undefined,
+    pinned: Boolean(asset.pinned),
+    folder: typeof asset.folder === "string" ? asset.folder : "",
+    ...(typeof asset.sourcePath === "string" && asset.sourcePath
+      ? { sourcePath: asset.sourcePath }
+      : {}),
+    ...(asset.derivedFrom &&
+    typeof asset.derivedFrom.assetId === "string" &&
+    typeof asset.derivedFrom.runId === "string"
+      ? { derivedFrom: asset.derivedFrom }
+      : {}),
+    author: typeof asset.author === "string" ? asset.author : "",
+    origin: typeof asset.origin === "string" ? asset.origin : "",
+    useCase: typeof asset.useCase === "string" ? asset.useCase : "",
+    examples: Array.isArray(asset.examples)
+      ? asset.examples.filter(
+          (item) =>
+            item &&
+            typeof item.input === "string" &&
+            typeof item.output === "string",
+        )
+      : [],
+    recommendedModel:
+      typeof asset.recommendedModel === "string" ? asset.recommendedModel : "",
+    modelParameters:
+      typeof asset.modelParameters === "string" ? asset.modelParameters : "",
+    runNotes: typeof asset.runNotes === "string" ? asset.runNotes : "",
+    permissions: {
+      fileAccess: Boolean(asset.permissions?.fileAccess),
+      network: Boolean(asset.permissions?.network),
+      ai: Boolean(asset.permissions?.ai),
+    },
+    attachments: Array.isArray(asset.attachments) ? asset.attachments : [],
+    runs: Array.isArray(asset.runs)
+      ? asset.runs.filter(
+          (run) =>
+            run &&
+            typeof run.id === "string" &&
+            typeof run.createdAt === "string",
+        )
+      : [],
+    revisions: Array.isArray(asset.revisions) ? asset.revisions : [],
     createdAt: typeof asset.createdAt === "string" ? asset.createdAt : now,
     updatedAt: typeof asset.updatedAt === "string" ? asset.updatedAt : now,
   });
 }
 
-export function serializeAssetBundle(assets: SmartAsset[], exportedAt = new Date().toISOString()): string {
-  return JSON.stringify({ format: "fde-smart-assets", version: 1, exportedAt, assets } satisfies AssetBundle, null, 2);
+export function serializeAssetBundle(
+  assets: SmartAsset[],
+  exportedAt = new Date().toISOString(),
+): string {
+  return JSON.stringify(
+    {
+      format: "fde-smart-assets",
+      version: 1,
+      exportedAt,
+      assets,
+    } satisfies AssetBundle,
+    null,
+    2,
+  );
 }
 
-export function parseAssetBundle(input: string): SmartAsset[] {
+export function serializeAssetsYaml(assets: SmartAsset[]): string {
+  return stringifyYaml({
+    format: "fde-smart-assets",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    assets,
+  });
+}
+
+export function serializeAssetMarkdown(asset: SmartAsset): string {
+  const frontMatter = [
+    `id: ${JSON.stringify(asset.id)}`,
+    `kind: ${asset.kind}`,
+    `name: ${JSON.stringify(asset.name)}`,
+    `description: ${JSON.stringify(asset.description)}`,
+    `category: ${JSON.stringify(asset.category)}`,
+    `tags: ${JSON.stringify(asset.tags)}`,
+    `asset: ${JSON.stringify(asset)}`,
+  ].join("\n");
+  return `---\n${frontMatter}\n---\n\n# ${asset.name}\n\n${asset.description}\n\n## System Prompt\n\n${asset.systemPrompt}\n\n## Prompt\n\n${asset.userPrompt}\n`;
+}
+
+export function parseAssetBundle(
+  input: string,
+  format: "json" | "yaml" | "markdown" = "json",
+): SmartAsset[] {
   let parsed: unknown;
-  try { parsed = JSON.parse(input); } catch { throw new Error("导入文件不是有效的 JSON"); }
+  try {
+    if (format === "markdown") {
+      const match = input.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
+      if (!match) throw new Error("Markdown 文件缺少资产头信息");
+      const data = match[1].match(/^asset:\s*(.+)$/m)?.[1];
+      parsed = data ? JSON.parse(data) : null;
+      if (parsed && typeof parsed === "object" && "kind" in parsed) {
+        const asset = normalizeAsset(parsed);
+        if (!asset) throw new Error("Markdown 中的资产数据无效");
+        return [asset];
+      }
+      throw new Error("Markdown 中没有有效的 FDE 资产");
+    }
+    if (format === "yaml") {
+      parsed = parseYaml(input);
+    } else parsed = JSON.parse(input);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message !== "Unexpected end of JSON input" &&
+      !error.message.includes("JSON")
+    )
+      throw error;
+    throw new Error(
+      `导入文件不是有效的 ${format === "json" ? "JSON" : format === "yaml" ? "YAML" : "FDE Markdown"}`,
+    );
+  }
   const bundle = parsed as Partial<AssetBundle>;
-  if (bundle.format !== "fde-smart-assets" || bundle.version !== 1 || !Array.isArray(bundle.assets)) {
+  if (
+    bundle.format !== "fde-smart-assets" ||
+    bundle.version !== 1 ||
+    !Array.isArray(bundle.assets)
+  ) {
     throw new Error("不是受支持的 FDE 智能资产文件");
   }
-  const assets = bundle.assets.map(normalizeAsset).filter((asset): asset is SmartAsset => Boolean(asset));
-  if (!assets.length && bundle.assets.length) throw new Error("文件中没有有效的智能资产");
+  const assets = bundle.assets
+    .map(normalizeAsset)
+    .filter((asset): asset is SmartAsset => Boolean(asset));
+  if (!assets.length && bundle.assets.length)
+    throw new Error("文件中没有有效的智能资产");
   return assets;
 }
 
-export function mergeAssets(current: SmartAsset[], incoming: SmartAsset[]): SmartAsset[] {
-  const merged = new Map(current.map(asset => [asset.id, asset]));
+export function mergeAssets(
+  current: SmartAsset[],
+  incoming: SmartAsset[],
+): SmartAsset[] {
+  const merged = new Map(current.map((asset) => [asset.id, asset]));
   for (const asset of incoming) merged.set(asset.id, asset);
   return [...merged.values()];
 }
 
 export const defaultAssets: SmartAsset[] = [
   syncAssetVariables({
-    ...createAsset("prompt", "2026-09-12T00:00:00.000Z", "fde-prompt-code-review"),
+    ...createAsset(
+      "prompt",
+      "2026-09-12T00:00:00.000Z",
+      "fde-prompt-code-review",
+    ),
     name: "代码审查",
     description: "从正确性、安全性和可维护性审查代码。",
     category: "代码审查",
@@ -161,7 +489,11 @@ export const defaultAssets: SmartAsset[] = [
     userPrompt: "请审查以下代码，重点关注 {{关注点}}：\n\n{{代码}}",
   }),
   syncAssetVariables({
-    ...createAsset("prompt", "2026-09-12T00:00:00.000Z", "fde-prompt-error-analysis"),
+    ...createAsset(
+      "prompt",
+      "2026-09-12T00:00:00.000Z",
+      "fde-prompt-error-analysis",
+    ),
     name: "错误日志分析",
     description: "分析日志并给出可验证的排查步骤。",
     category: "Bug 排查",
@@ -170,22 +502,42 @@ export const defaultAssets: SmartAsset[] = [
     userPrompt: "项目技术栈：{{技术栈}}\n\n请分析以下错误日志：\n{{错误日志}}",
   }),
   syncAssetVariables({
-    ...createAsset("media-prompt", "2026-09-12T00:00:00.000Z", "fde-media-product-shot"),
+    ...createAsset(
+      "media-prompt",
+      "2026-09-12T00:00:00.000Z",
+      "fde-media-product-shot",
+    ),
     name: "极简产品主视觉",
     description: "生成适合产品发布页的干净主视觉。",
     category: "图片生成",
     tags: ["产品", "商业摄影"],
     favorite: true,
-    userPrompt: "{{产品}} 位于 {{场景}} 中央，极简构图，柔和轮廓光，{{主色调}}，高端商业摄影。",
-    media: { kind: "image", model: "通用", aspectRatio: "16:9", negativePrompt: "文字、水印、低清晰度、畸变" },
+    userPrompt:
+      "{{产品}} 位于 {{场景}} 中央，极简构图，柔和轮廓光，{{主色调}}，高端商业摄影。",
+    media: {
+      kind: "image",
+      model: "通用",
+      aspectRatio: "16:9",
+      negativePrompt: "文字、水印、低清晰度、畸变",
+    },
   }),
   syncAssetVariables({
-    ...createAsset("media-prompt", "2026-09-12T00:00:00.000Z", "fde-media-video-shot"),
+    ...createAsset(
+      "media-prompt",
+      "2026-09-12T00:00:00.000Z",
+      "fde-media-video-shot",
+    ),
     name: "产品环绕镜头",
     description: "生成一段平滑的产品展示镜头。",
     category: "视频生成",
     tags: ["视频", "镜头"],
-    userPrompt: "镜头从 {{起始角度}} 缓慢环绕 {{产品}}，背景为 {{场景}}，光线逐渐变为 {{光线变化}}，节奏平稳。",
-    media: { kind: "video", model: "通用", aspectRatio: "16:9", negativePrompt: "镜头抖动、主体形变、闪烁" },
+    userPrompt:
+      "镜头从 {{起始角度}} 缓慢环绕 {{产品}}，背景为 {{场景}}，光线逐渐变为 {{光线变化}}，节奏平稳。",
+    media: {
+      kind: "video",
+      model: "通用",
+      aspectRatio: "16:9",
+      negativePrompt: "镜头抖动、主体形变、闪烁",
+    },
   }),
 ];
