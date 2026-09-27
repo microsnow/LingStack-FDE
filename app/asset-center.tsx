@@ -18,7 +18,9 @@ import {
   type MediaKind,
   type SmartAsset,
 } from "../lib/smart-assets";
+import type { AssetIndexScan, AssetRoot } from "./desktop";
 import { FdeNavigation, type FdeModule } from "./fde-navigation";
+import { MEDIA_PROMPT_DICTIONARY, checkMediaPrompt, checkNegativePromptCompatibility, suggestNegativePrompt } from "../lib/media-prompt-tools";
 
 const defaultCategories: Record<AssetKind, string[]> = {
   prompt: [
@@ -73,6 +75,12 @@ export default function AssetCenter({
   const [comparisonRunIds, setComparisonRunIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [variableSource, setVariableSource] = useState<"Git Diff" | "工具输出" | null>(null);
+  const [sourceText, setSourceText] = useState("");
+  const [dictionaryTerm, setDictionaryTerm] = useState("");
+  const [assetRoots, setAssetRoots] = useState<AssetRoot[]>([]);
+  const [assetRootId, setAssetRootId] = useState("");
+  const [indexBusy, setIndexBusy] = useState(false);
   const [desktopStorageReady, setDesktopStorageReady] = useState(
     !window.fdeDesktop,
   );
@@ -90,6 +98,10 @@ export default function AssetCenter({
         );
     }
   }, [assets, desktopStorageReady]);
+
+  useEffect(() => {
+    void window.fdeDesktop?.listAssetRoots().then(setAssetRoots).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const desktop = window.fdeDesktop;
@@ -435,6 +447,58 @@ export default function AssetCenter({
     }
   }
 
+  function fillVariableFromText(value: string, source: string) {
+    if (!selected?.variables.length) return;
+    const target = selected.variables.find((variable) => !variable.value) ?? selected.variables[0];
+    update({ variables: selected.variables.map((variable) => variable.name === target.name ? { ...variable, value } : variable) });
+    setMessage(`已将${source}填入「${target.name}」`);
+  }
+
+  function insertDictionaryTerm(term: string, negative = false) {
+    if (!selected || !term) return;
+    if (negative && selected.media) {
+      const current = selected.media.negativePrompt.trim();
+      update({ media: { ...selected.media, negativePrompt: current ? `${current}、${term}` : term } });
+    } else {
+      const current = selected.userPrompt.trim();
+      update({ userPrompt: current ? `${current}，${term}` : term });
+    }
+  }
+
+  async function scanExternalAssets() {
+    if (!window.fdeDesktop) {
+      setMessage("外部目录索引需要桌面版");
+      return;
+    }
+    setIndexBusy(true);
+    try {
+      const result: AssetIndexScan = await window.fdeDesktop.scanAssetRoots();
+      const incoming: SmartAsset[] = [];
+      for (const file of result.files) {
+        try {
+          const parsed = parseAssetBundle(file.content, file.format);
+          incoming.push(...parsed.map(asset => ({ ...asset, source: "imported" as const, sourcePath: file.path })));
+        } catch { /* Ignore unrelated Markdown/YAML files in indexed directories. */ }
+      }
+      if (incoming.length) setAssets(current => mergeAssets(current, incoming));
+      setAssetRoots(result.roots);
+      setMessage(`扫描到 ${result.files.length} 个文件，导入 ${incoming.length} 项智能资产${result.truncated ? "（达到扫描上限）" : ""}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "智能资产目录扫描失败");
+    } finally {
+      setIndexBusy(false);
+    }
+  }
+
+  async function addAssetIndexRoot() {
+    try {
+      const roots = await window.fdeDesktop?.addAssetRoot();
+      if (roots) { setAssetRoots(roots); await scanExternalAssets(); }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "添加索引目录失败");
+    }
+  }
+
   function exportAssets() {
     const blob = new Blob([serializeAssetBundle(kindAssets)], {
       type: "application/json;charset=utf-8",
@@ -548,6 +612,22 @@ export default function AssetCenter({
           <button onClick={() => importRef.current?.click()} title="导入资产">
             ⇧
           </button>
+          {window.fdeDesktop && (
+            <>
+              <button disabled={indexBusy} onClick={() => void addAssetIndexRoot()} title="添加只读索引目录">＋目录</button>
+              <button disabled={indexBusy || !assetRoots.length} onClick={() => void scanExternalAssets()} title="刷新外部目录索引">{indexBusy ? "扫描中…" : "刷新索引"}</button>
+              {assetRoots.length > 0 && <>
+                <select aria-label="已索引的资产目录" value={assetRootId} onChange={event => setAssetRootId(event.target.value)}>
+                  <option value="">索引目录 ({assetRoots.length})</option>
+                  {assetRoots.map(root => <option key={root.id} value={root.id}>{root.label}</option>)}
+                </select>
+                <button disabled={!assetRootId} onClick={async () => {
+                  const roots = await window.fdeDesktop?.removeAssetRoot(assetRootId);
+                  if (roots) { setAssetRoots(roots); setAssetRootId(""); setMessage("已移除目录索引；源文件和已导入资产均保留"); }
+                }} title="移除选中的索引目录">移除</button>
+              </>}
+            </>
+          )}
           <input
             ref={importRef}
             hidden
@@ -695,7 +775,7 @@ export default function AssetCenter({
                     <b>{asset.name}</b>
                     <small>{asset.description || "暂无描述"}</small>
                     <em>
-                      {asset.category} · v{asset.version}
+                      {asset.category} · v{asset.version}{asset.sourcePath ? " · 外部索引" : ""}
                     </em>
                   </span>
                   <i
@@ -1145,6 +1225,18 @@ export default function AssetCenter({
                           <option>3:2</option>
                         </select>
                       </label>
+                      <label className="wide">
+                        <span>模型能力限制（JSON，可选）</span>
+                        <textarea
+                          value={selected.media.capabilityProfile ?? ""}
+                          placeholder={'{"aspectRatios":["1:1","16:9"],"maxReferences":4,"maxDurationSeconds":10}'}
+                          onChange={(event) => update({ media: { ...selected.media!, capabilityProfile: event.target.value } })}
+                        />
+                      </label>
+                      <div className="media-checks wide">
+                        <b>能力检查</b>
+                        {checkMediaPrompt(selected).map((check, index) => <p className={check.level} key={index}>{check.message}</p>)}
+                      </div>
                       <label>
                         <span>Seed</span>
                         <input
@@ -1465,20 +1557,30 @@ export default function AssetCenter({
                     />
                   </label>
                   {kind === "media-prompt" && selected.media && (
-                    <label className="wide">
-                      <span>负面提示词</span>
-                      <textarea
-                        value={selected.media.negativePrompt}
-                        onChange={(event) =>
-                          update({
-                            media: {
-                              ...selected.media!,
-                              negativePrompt: event.target.value,
-                            },
-                          })
-                        }
-                      />
-                    </label>
+                    <>
+                      <label className="wide">
+                        <span>负面提示词</span>
+                        <textarea
+                          value={selected.media.negativePrompt}
+                          onChange={(event) => update({ media: { ...selected.media!, negativePrompt: event.target.value } })}
+                        />
+                        <button type="button" className="asset-run-save" onClick={() => {
+                          const terms = suggestNegativePrompt(selected).filter(term => !selected.media!.negativePrompt.includes(term));
+                          if (terms.length) update({ media: { ...selected.media!, negativePrompt: [selected.media!.negativePrompt.trim(), ...terms].filter(Boolean).join("、") } });
+                          setMessage(terms.length ? `已加入 ${terms.length} 条负面提示词建议` : "建议词已包含在当前内容中");
+                        }}>生成建议词</button>
+                        {checkNegativePromptCompatibility(selected.media.negativePrompt, selected.media.model).map((check, index) => <small className="media-warning" key={index}>{check.message}</small>)}
+                      </label>
+                      <div className="media-dictionary wide">
+                        <b>提示词词典</b>
+                        <select value={dictionaryTerm} onChange={event => setDictionaryTerm(event.target.value)}>
+                          <option value="">选择风格、镜头、灯光、构图或色彩词</option>
+                          {Object.entries(MEDIA_PROMPT_DICTIONARY).map(([group, terms]) => <optgroup label={group} key={group}>{terms.map(term => <option key={term}>{term}</option>)}</optgroup>)}
+                        </select>
+                        <button onClick={() => insertDictionaryTerm(dictionaryTerm)}>加入主提示词</button>
+                        <button onClick={() => insertDictionaryTerm(dictionaryTerm, true)}>加入负面提示词</button>
+                      </div>
+                    </>
                   )}
                 </div>
                 <section className="variable-panel">
@@ -1491,6 +1593,13 @@ export default function AssetCenter({
                     >
                       从剪贴板填入
                     </button>
+                    <button disabled={!selected.variables.length} onClick={() => { setVariableSource("Git Diff"); setSourceText(""); }}>填入 Git Diff</button>
+                    <button disabled={!selected.variables.length} onClick={() => { setVariableSource("工具输出"); setSourceText(""); }}>填入工具输出</button>
+                    <label className="asset-file-source">读取当前文件<input type="file" onChange={event => {
+                      const file = event.target.files?.[0];
+                      if (file) void file.text().then(value => fillVariableFromText(value, `文件「${file.name}」`));
+                      event.currentTarget.value = "";
+                    }} /></label>
                   </div>
                   {selected.variables.length ? (
                     <div className="variable-grid">
@@ -1946,6 +2055,15 @@ export default function AssetCenter({
           </section>
         </div>
       </section>
+      {variableSource && (
+        <div className="skill-modal" role="dialog" aria-modal="true" aria-label={`填入${variableSource}`}>
+          <form onSubmit={event => { event.preventDefault(); fillVariableFromText(sourceText, variableSource); setVariableSource(null); }}>
+            <header><div><span>变量来源</span><h2>粘贴{variableSource}</h2></div><button type="button" onClick={() => setVariableSource(null)}>×</button></header>
+            <textarea autoFocus value={sourceText} onChange={event => setSourceText(event.target.value)} placeholder={variableSource === "Git Diff" ? "粘贴 git diff 内容" : "粘贴工具输出内容"} />
+            <footer><button type="button" onClick={() => setVariableSource(null)}>取消</button><button type="submit">填入首个空变量</button></footer>
+          </form>
+        </div>
+      )}
     </main>
   );
 }

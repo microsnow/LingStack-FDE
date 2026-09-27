@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { nextRecentTools, sensitiveToolIds } from "../lib/tool-policy";
 import { FdeNavigation, type FdeModule } from "./fde-navigation";
 import { categories, tools } from "../lib/tool-catalog";
+import { matchesToolSearch } from "../lib/tool-search";
 import type { ToolCapability } from "../lib/tool-catalog";
 import { toolSamples as samples } from "../lib/tool-samples";
 import { runTool as executeTool } from "../lib/tool-runner";
@@ -87,9 +88,7 @@ export default function Home({
     () =>
       tools
         .filter((t) => {
-          const matches = (t.name + t.desc + t.category)
-            .toLowerCase()
-            .includes(query.toLowerCase());
+          const matches = matchesToolSearch(t, query);
           if (!matches) return false;
           if (category === "常用收藏") return favorites.includes(t.id);
           if (category === "最近使用") return recent.includes(t.id);

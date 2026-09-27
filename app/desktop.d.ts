@@ -36,6 +36,9 @@ export type CredentialSummary = { id: string; label: string; updatedAt: string }
 export type CredentialStorageStatus = { available: boolean; backend: string; message: string };
 export type UpdateCheckResult = { status: string; version?: string; message: string };
 export type UpdateProgress = { status?: string; percent?: number; message?: string };
+import type { AssetIndexFile, AssetRoot } from "../desktop/asset-index.mjs";
+export type { AssetRoot };
+export type AssetIndexScan = { roots: AssetRoot[]; files: AssetIndexFile[]; truncated: boolean; scannedAt: string };
 
 declare global {
   interface Window {
@@ -45,6 +48,10 @@ declare global {
       openFileDialog(): Promise<void>;
       loadSmartAssets(): Promise<unknown[] | null>;
       saveSmartAssets(assets: SmartAsset[]): Promise<void>;
+      addAssetRoot(): Promise<AssetRoot[] | null>;
+      listAssetRoots(): Promise<AssetRoot[]>;
+      removeAssetRoot(id: string): Promise<AssetRoot[]>;
+      scanAssetRoots(): Promise<AssetIndexScan>;
       getCredentialStatus(): Promise<CredentialStorageStatus>;
       listCredentials(): Promise<CredentialSummary[]>;
       saveCredential(label: string, secret: string): Promise<CredentialSummary>;

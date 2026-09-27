@@ -91,6 +91,7 @@ export type SmartAsset = {
     kind: MediaKind;
     template?: MediaTemplate;
     model: string;
+    capabilityProfile?: string;
     aspectRatio: string;
     negativePrompt: string;
     seed?: string;
@@ -285,6 +286,10 @@ export function normalizeAsset(value: unknown): SmartAsset | null {
               typeof asset.media?.model === "string"
                 ? asset.media.model
                 : "通用",
+            capabilityProfile:
+              typeof asset.media?.capabilityProfile === "string"
+                ? asset.media.capabilityProfile
+                : "",
             aspectRatio:
               typeof asset.media?.aspectRatio === "string"
                 ? asset.media.aspectRatio

@@ -3,6 +3,7 @@ import updater from "electron-updater";
 import { readFile, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { loadSmartAssets, saveSmartAssets } from "./asset-store.mjs";
+import { addAssetRoot, listAssetRoots, removeAssetRoot, scanAssetRoots } from "./asset-index.mjs";
 import { getCredentialStorageStatus, listCredentials, removeCredential, saveCredential } from "./credential-store.mjs";
 import { getPlatformAdapter } from "./platform-adapter.mjs";
 import { scanSkillRoots } from "./skill-scanner.mjs";
@@ -344,6 +345,25 @@ app.whenReady().then(() => {
   ipcMain.handle("fde:save-smart-assets", async (event, assets) => {
     assertTrustedSender(event);
     await saveSmartAssets(app.getPath("userData"), assets);
+  });
+  ipcMain.handle("fde:add-asset-root", async event => {
+    assertTrustedSender(event);
+    const selection = await dialog.showOpenDialog(mainWindow, { title: "添加智能资产目录（只读索引）", properties: ["openDirectory"] });
+    if (selection.canceled || !selection.filePaths[0]) return null;
+    return addAssetRoot(app.getPath("userData"), selection.filePaths[0]);
+  });
+  ipcMain.handle("fde:list-asset-roots", event => {
+    assertTrustedSender(event);
+    return listAssetRoots(app.getPath("userData"));
+  });
+  ipcMain.handle("fde:remove-asset-root", async (event, id) => {
+    assertTrustedSender(event);
+    if (typeof id !== "string") throw new Error("无效的资产目录");
+    return removeAssetRoot(app.getPath("userData"), id);
+  });
+  ipcMain.handle("fde:scan-asset-roots", event => {
+    assertTrustedSender(event);
+    return scanAssetRoots(app.getPath("userData"));
   });
   ipcMain.handle("fde:credential-status", event => {
     assertTrustedSender(event);

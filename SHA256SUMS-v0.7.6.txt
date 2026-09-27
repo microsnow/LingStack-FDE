@@ -1,0 +1,2 @@
+cf8fdb46a24bcb0c2d7cc4106c3eb88f84f23582781f20dd574121107ffa0c6f  LingStack-FDE-Setup-0.7.6-x64.exe
+2a48387281d89917f5481c9f4daa5123e55920a289a20300c0ec098b79ee75ce  LingStack-FDE-Portable-0.7.6-x64.exe

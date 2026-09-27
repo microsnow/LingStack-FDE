@@ -4,6 +4,7 @@ import {
   createAsset,
   extractTemplateVariables,
   mergeAssets,
+  normalizeAsset,
   parseAssetBundle,
   renderAsset,
   serializeAssetBundle,
@@ -28,6 +29,12 @@ test("keeps variable values while prompt templates change", () => {
     { name: "安全", value: "" },
   ]);
   assert.equal(renderAsset(updated).userPrompt, "审查 const n = 1，语言为 TypeScript，关注 ");
+});
+
+test("loads legacy media prompts without the new capability profile field", () => {
+  const legacy = createAsset("media-prompt", "2026-01-01T00:00:00.000Z", "legacy");
+  if (legacy.media) delete legacy.media.capabilityProfile;
+  assert.equal(normalizeAsset(legacy)?.media?.capabilityProfile, "");
 });
 
 test("round-trips FDE smart asset bundles and rejects unknown files", () => {
